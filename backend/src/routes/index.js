@@ -1,6 +1,6 @@
 const express = require('express');
-const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const multer  = require('multer');
+const upload  = multer({ dest: 'uploads/' });
 
 const { verificarToken, soloAdmin } = require('../middleware/auth');
 
@@ -10,6 +10,7 @@ const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: act
 const { listar: listarComp, obtener: obtenerComp, crear: crearComp, eliminar: eliminarComp } = require('../controllers/comprasController');
 const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
 const { resumen, reporteVentas, productosMasVendidos, movimientos } = require('../controllers/dashboardController');
+const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf } = require('../controllers/facturasEfController');
 
 // ── AUTH ──────────────────────────────────────────────────
 const authRouter = express.Router();
@@ -41,17 +42,17 @@ documentosRouter.delete('/:id',         soloAdmin, eliminarDoc);
 // ── COMPRAS ───────────────────────────────────────────────
 const comprasRouter = express.Router();
 comprasRouter.use(verificarToken);
-comprasRouter.get('/',      listarComp);
-comprasRouter.get('/:id',   obtenerComp);
-comprasRouter.post('/',     crearComp);
+comprasRouter.get('/',       listarComp);
+comprasRouter.get('/:id',    obtenerComp);
+comprasRouter.post('/',      crearComp);
 comprasRouter.delete('/:id', soloAdmin, eliminarComp);
 
 // ── USUARIOS ──────────────────────────────────────────────
 const usuariosRouter = express.Router();
 usuariosRouter.use(verificarToken, soloAdmin);
-usuariosRouter.get('/',     listarUs);
-usuariosRouter.post('/',    crearUs);
-usuariosRouter.put('/:id',  actualizarUs);
+usuariosRouter.get('/',      listarUs);
+usuariosRouter.post('/',     crearUs);
+usuariosRouter.put('/:id',   actualizarUs);
 usuariosRouter.delete('/:id', eliminarUs);
 
 // ── DASHBOARD ─────────────────────────────────────────────
@@ -66,4 +67,21 @@ reportesRouter.get('/ventas',                 reporteVentas);
 reportesRouter.get('/productos-mas-vendidos', productosMasVendidos);
 reportesRouter.get('/movimientos',            movimientos);
 
-module.exports = { authRouter, productosRouter, documentosRouter, comprasRouter, usuariosRouter, dashboardRouter, reportesRouter };
+// ── FACTURAS EFACILITO ────────────────────────────────────
+const facturasEfRouter = express.Router();
+facturasEfRouter.use(verificarToken);
+facturasEfRouter.post('/importar',  ...importar);
+facturasEfRouter.get('/exportar',   exportarFacEf);
+facturasEfRouter.get('/',           listarFacEf);
+facturasEfRouter.delete('/:id',     eliminarFacEf);
+
+module.exports = {
+  authRouter,
+  productosRouter,
+  documentosRouter,
+  comprasRouter,
+  usuariosRouter,
+  dashboardRouter,
+  reportesRouter,
+  facturasEfRouter,
+};

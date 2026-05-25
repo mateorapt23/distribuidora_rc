@@ -98,24 +98,29 @@ CREATE TABLE compras_detalle (
 CREATE SEQUENCE seq_compra START 1;
 
 CREATE TABLE facturas_efacilito (
-    id             SERIAL PRIMARY KEY,
-    numero_factura VARCHAR(50)    NOT NULL,
-    cliente        VARCHAR(150),
-    fecha          DATE           NOT NULL,
-    total          NUMERIC(12,2)  NOT NULL DEFAULT 0,
-    archivo_origen VARCHAR(255),
-    usuario_id     INTEGER        REFERENCES usuarios(id),
-    creado_en      TIMESTAMP      NOT NULL DEFAULT NOW()
+    id              SERIAL PRIMARY KEY,
+    nro_factura     VARCHAR(50)    NOT NULL UNIQUE,
+    fecha           DATE           NOT NULL,
+    cedula_ruc      VARCHAR(20),
+    cliente         VARCHAR(200),
+    estado          VARCHAR(30)    NOT NULL DEFAULT 'AUTORIZADO',
+    total           NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    archivo_origen  VARCHAR(255),
+    usuario_id      INTEGER        REFERENCES usuarios(id),
+    importado_en    TIMESTAMP      NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE facturas_efacilito_detalle (
-    id          SERIAL PRIMARY KEY,
-    factura_id  INTEGER        NOT NULL REFERENCES facturas_efacilito(id) ON DELETE CASCADE,
-    producto_id INTEGER        REFERENCES productos(id),
-    descripcion VARCHAR(255)   NOT NULL,
-    cantidad    NUMERIC(12,2)  NOT NULL,
-    precio      NUMERIC(12,2)  NOT NULL,
-    subtotal    NUMERIC(12,2)  NOT NULL
+    id              SERIAL PRIMARY KEY,
+    factura_id      INTEGER        NOT NULL REFERENCES facturas_efacilito(id) ON DELETE CASCADE,
+    codigo          VARCHAR(50),
+    producto_id     INTEGER        REFERENCES productos(id),
+    descripcion     VARCHAR(255)   NOT NULL,
+    precio          NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    cantidad        NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    descuento       NUMERIC(12,2)  NOT NULL DEFAULT 0,
+    pct_iva         NUMERIC(5,2)   NOT NULL DEFAULT 0,
+    importe         NUMERIC(12,2)  NOT NULL DEFAULT 0
 );
 
 CREATE TABLE movimiento_stock (

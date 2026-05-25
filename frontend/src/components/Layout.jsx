@@ -24,9 +24,9 @@ const NAV_SECTIONS = [
   {
     label: 'Operaciones',
     items: [
-      { to: '/documentos',  label: 'Proformas / Recibos', icon: 'documentos' },
-      { to: '/compras',     label: 'Compras',             icon: 'compras' },
-      { to: '/facturas-ef', label: 'Facturas Efacilito',  icon: 'facturas' },
+      { to: '/documentos',   label: 'Proformas / Recibos', icon: 'documentos' },
+      { to: '/compras',      label: 'Compras',             icon: 'compras' },
+      { to: '/facturas-ef',  label: 'Facturas Efacilito',  icon: 'facturas' },
     ],
   },
   {

@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Productos from './pages/Productos/Productos';
 import Documentos from './pages/Documentos/Documentos';
 import Compras from './pages/Compras/Compras';
+import FacturasEfacilito from './pages/FacturasEfacilito/FacturasEfacilito';
 import Reportes from './pages/Reportes/Reportes';
 import Usuarios from './pages/Usuarios/Usuarios';
 
@@ -40,6 +41,11 @@ function App() {
       <Route path="/compras" element={
         <RutaProtegida>
           <Compras />
+        </RutaProtegida>
+      } />
+      <Route path="/facturas-ef" element={
+        <RutaProtegida>
+          <FacturasEfacilito />
         </RutaProtegida>
       } />
       <Route path="/reportes" element={
