@@ -1,0 +1,294 @@
+import { useState } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+const ICONS = {
+  dashboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg>,
+  productos: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>,
+  documentos: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>,
+  compras: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
+  facturas: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><path d="M9 12h6M9 16h4"/></svg>,
+  reportes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  usuarios: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  logout: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+};
+
+const NAV_SECTIONS = [
+  {
+    label: 'Principal',
+    items: [
+      { to: '/dashboard',   label: 'Dashboard',          icon: 'dashboard' },
+      { to: '/productos',   label: 'Productos',           icon: 'productos' },
+    ],
+  },
+  {
+    label: 'Operaciones',
+    items: [
+      { to: '/documentos',  label: 'Proformas / Recibos', icon: 'documentos' },
+      { to: '/compras',     label: 'Compras',             icon: 'compras' },
+      { to: '/facturas-ef', label: 'Facturas Efacilito',  icon: 'facturas' },
+    ],
+  },
+  {
+    label: 'Análisis',
+    items: [
+      { to: '/reportes', label: 'Reportes', icon: 'reportes' },
+    ],
+  },
+];
+
+const NAV_ADMIN = {
+  label: 'Sistema',
+  items: [{ to: '/usuarios', label: 'Usuarios', icon: 'usuarios' }],
+};
+
+const ROUTE_LABELS = {
+  '/dashboard':   'Dashboard',
+  '/productos':   'Productos',
+  '/documentos':  'Proformas / Recibos',
+  '/compras':     'Compras',
+  '/facturas-ef': 'Facturas Efacilito',
+  '/reportes':    'Reportes',
+  '/usuarios':    'Usuarios',
+};
+
+// Colores del sidebar oscuro
+const S = {
+  bg:        '#0D111C',
+  bgHover:   '#141928',
+  bgActive:  '#1a2235',
+  border:    '#1A2238',
+  label:     '#3D5070',
+  textDim:   '#4a5568',
+  textNav:   '#8892a4',
+  textActive:'#F5C400',
+  gold:      '#F5C400',
+};
+
+function NavItem({ item, open }) {
+  return (
+    <NavLink
+      to={item.to}
+      onClick={e => e.stopPropagation()}
+      style={({ isActive }) => ({
+        display: 'flex', alignItems: 'center',
+        gap: 10, margin: '1px 8px', height: 38,
+        borderRadius: 8, cursor: 'pointer',
+        textDecoration: 'none', overflow: 'hidden',
+        position: 'relative',
+        padding: open ? '0 10px' : '0',
+        justifyContent: open ? 'flex-start' : 'center',
+        background: isActive ? S.bgActive : 'transparent',
+        transition: 'background .15s',
+      })}
+      onMouseEnter={e => { if (!e.currentTarget.classList.contains('active')) e.currentTarget.style.background = S.bgHover; }}
+      onMouseLeave={e => { if (!e.currentTarget.classList.contains('active')) e.currentTarget.style.background = 'transparent'; }}
+    >
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <div style={{
+              position: 'absolute', left: 0, top: 8, bottom: 8,
+              width: 3, background: S.gold,
+              borderRadius: '0 3px 3px 0',
+            }} />
+          )}
+          <div style={{
+            width: 28, height: 28, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            borderRadius: 7,
+            color: isActive ? S.gold : S.textNav,
+            transition: 'color .15s',
+          }}>
+            <div style={{ width: 16, height: 16, display: 'flex' }}>
+              {ICONS[item.icon]}
+            </div>
+          </div>
+          {open && (
+            <span style={{
+              fontSize: 13, fontWeight: isActive ? 600 : 400,
+              color: isActive ? S.gold : S.textNav,
+              whiteSpace: 'nowrap', overflow: 'hidden',
+              transition: 'color .15s',
+            }}>
+              {item.label}
+            </span>
+          )}
+        </>
+      )}
+    </NavLink>
+  );
+}
+
+export default function Layout({ children }) {
+  const { usuario, logout } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [open, setOpen] = useState(true);
+
+  const handleLogout = (e) => { e.stopPropagation(); logout(); navigate('/login'); };
+
+  const initials = usuario?.nombre
+    ? usuario.nombre.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+    : 'U';
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb' }}>
+
+      {/* ── Sidebar oscuro ── */}
+      <aside
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: open ? 232 : 56,
+          background: S.bg,
+          borderRight: `1px solid ${S.border}`,
+          display: 'flex', flexDirection: 'column',
+          flexShrink: 0,
+          transition: 'width .28s cubic-bezier(.4,0,.2,1)',
+          cursor: 'pointer', userSelect: 'none',
+        }}
+      >
+        {/* Logo */}
+        <div style={{
+          padding: '16px 12px 14px',
+          borderBottom: `1px solid ${S.border}`,
+          display: 'flex', alignItems: 'center', gap: 10,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            width: 30, height: 30, flexShrink: 0,
+            background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+            borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg viewBox="0 0 16 16" style={{ width: 14, height: 14, stroke: '#0D111C', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round' }}>
+              <path d="M2 8h12M8 2v12" />
+            </svg>
+          </div>
+          {open && (
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{
+                fontSize: 13, fontWeight: 700, color: '#E8EDF2',
+                letterSpacing: '.1px', whiteSpace: 'nowrap',
+              }}>
+                Distribuidora RC
+              </div>
+              <div style={{
+                fontSize: 9, color: S.label, fontWeight: 600,
+                letterSpacing: '.8px', textTransform: 'uppercase', whiteSpace: 'nowrap',
+              }}>
+                Materiales · Gestión
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <div style={{ flex: 1, padding: '10px 0', overflow: 'hidden' }}>
+          {NAV_SECTIONS.map(section => (
+            <div key={section.label} style={{ marginBottom: 4 }}>
+              {open && (
+                <div style={{
+                  fontSize: 9, fontWeight: 700, color: S.label,
+                  letterSpacing: '1.2px', textTransform: 'uppercase',
+                  padding: '8px 16px 4px', whiteSpace: 'nowrap',
+                }}>
+                  {section.label}
+                </div>
+              )}
+              {section.items.map(item => (
+                <NavItem key={item.to} item={item} open={open} />
+              ))}
+            </div>
+          ))}
+
+          <div style={{ height: 1, background: S.border, margin: '6px 14px' }} />
+
+          {usuario?.rol === 'admin' && (
+            <div>
+              {open && (
+                <div style={{
+                  fontSize: 9, fontWeight: 700, color: S.label,
+                  letterSpacing: '1.2px', textTransform: 'uppercase',
+                  padding: '8px 16px 4px', whiteSpace: 'nowrap',
+                }}>
+                  {NAV_ADMIN.label}
+                </div>
+              )}
+              {NAV_ADMIN.items.map(item => (
+                <NavItem key={item.to} item={item} open={open} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer usuario */}
+        <div style={{ borderTop: `1px solid ${S.border}`, padding: '10px 8px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 9,
+            padding: '7px 6px', borderRadius: 8, overflow: 'hidden',
+            justifyContent: open ? 'flex-start' : 'center',
+          }}>
+            <div style={{
+              width: 30, height: 30, flexShrink: 0,
+              background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+              borderRadius: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 700, color: '#0D111C',
+            }}>
+              {initials}
+            </div>
+            {open && (
+              <>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#E8EDF2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {usuario?.nombre}
+                  </div>
+                  <div style={{ fontSize: 10, color: S.label, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                    {usuario?.rol}
+                  </div>
+                </div>
+                <div
+                  onClick={handleLogout}
+                  title="Cerrar sesión"
+                  style={{
+                    width: 26, height: 26, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', borderRadius: 6, flexShrink: 0,
+                    color: S.label, cursor: 'pointer', transition: 'all .15s',
+                  }}
+                  onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.background = '#1f0a0a'; e.currentTarget.style.color = '#ef4444'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = S.label; }}
+                >
+                  <div style={{ width: 14, height: 14, display: 'flex' }}>{ICONS.logout}</div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      {/* ── Contenido ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+
+        {/* Topbar */}
+        <div style={{
+          height: 50, background: '#fff',
+          borderBottom: '1px solid #e8eaf0',
+          display: 'flex', alignItems: 'center',
+          padding: '0 24px', gap: 6, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 12, color: '#9ba3b8' }}>Sistema</span>
+          <span style={{ fontSize: 12, color: '#d1d5db' }}>/</span>
+          <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>
+            {ROUTE_LABELS[location.pathname] || ''}
+          </span>
+        </div>
+
+        {/* Página */}
+        <main style={{ flex: 1, overflowY: 'auto', background: '#f4f5fb' }}>
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

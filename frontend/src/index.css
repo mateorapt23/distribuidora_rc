@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+* {
+  font-family: 'Inter', sans-serif;
+}
+
+:root {
+  --bg-base: #0A0C10;
+  --bg-card: #0D111C;
+  --bg-deep: #090C14;
+  --border: #1A2238;
+  --text-primary: #E8EDF2;
+  --text-secondary: #B8C8E0;
+  --text-dim: #3D5070;
+  --amarillo: #F5C400;
+  --azul: #1E90FF;
+  --verde: #2EA043;
+  --rojo: #F85149;
+}
+
+body {
+  background-color: var(--bg-base);
+  font-family: 'Barlow', 'Segoe UI', Arial, sans-serif;
+  color: var(--text-primary);
+}

@@ -1,0 +1,69 @@
+const express = require('express');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+
+const { verificarToken, soloAdmin } = require('../middleware/auth');
+
+const { login, perfil } = require('../controllers/authController');
+const { listar: listarProd, obtener: obtenerProd, crear: crearProd, actualizar: actualizarProd, eliminar: eliminarProd, ajusteStock, importarExcel, exportarExcel } = require('../controllers/productosController');
+const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: actualizarDoc, convertirARecibo, eliminar: eliminarDoc } = require('../controllers/documentosController');
+const { listar: listarComp, obtener: obtenerComp, crear: crearComp, eliminar: eliminarComp } = require('../controllers/comprasController');
+const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
+const { resumen, reporteVentas, productosMasVendidos, movimientos } = require('../controllers/dashboardController');
+
+// ── AUTH ──────────────────────────────────────────────────
+const authRouter = express.Router();
+authRouter.post('/login', login);
+authRouter.get('/perfil', verificarToken, perfil);
+
+// ── PRODUCTOS ─────────────────────────────────────────────
+const productosRouter = express.Router();
+productosRouter.use(verificarToken);
+productosRouter.get('/',                listarProd);
+productosRouter.get('/exportar',        exportarExcel);
+productosRouter.get('/:id',             obtenerProd);
+productosRouter.post('/',               crearProd);
+productosRouter.post('/importar',       upload.single('archivo'), importarExcel);
+productosRouter.post('/ajuste-stock',   soloAdmin, ajusteStock);
+productosRouter.put('/:id',             actualizarProd);
+productosRouter.delete('/:id',          soloAdmin, eliminarProd);
+
+// ── DOCUMENTOS ────────────────────────────────────────────
+const documentosRouter = express.Router();
+documentosRouter.use(verificarToken);
+documentosRouter.get('/',               listarDoc);
+documentosRouter.get('/:id',            obtenerDoc);
+documentosRouter.post('/',              crearDoc);
+documentosRouter.put('/:id',            actualizarDoc);
+documentosRouter.post('/:id/convertir', convertirARecibo);
+documentosRouter.delete('/:id',         soloAdmin, eliminarDoc);
+
+// ── COMPRAS ───────────────────────────────────────────────
+const comprasRouter = express.Router();
+comprasRouter.use(verificarToken);
+comprasRouter.get('/',      listarComp);
+comprasRouter.get('/:id',   obtenerComp);
+comprasRouter.post('/',     crearComp);
+comprasRouter.delete('/:id', soloAdmin, eliminarComp);
+
+// ── USUARIOS ──────────────────────────────────────────────
+const usuariosRouter = express.Router();
+usuariosRouter.use(verificarToken, soloAdmin);
+usuariosRouter.get('/',     listarUs);
+usuariosRouter.post('/',    crearUs);
+usuariosRouter.put('/:id',  actualizarUs);
+usuariosRouter.delete('/:id', eliminarUs);
+
+// ── DASHBOARD ─────────────────────────────────────────────
+const dashboardRouter = express.Router();
+dashboardRouter.use(verificarToken);
+dashboardRouter.get('/', resumen);
+
+// ── REPORTES ──────────────────────────────────────────────
+const reportesRouter = express.Router();
+reportesRouter.use(verificarToken, soloAdmin);
+reportesRouter.get('/ventas',                 reporteVentas);
+reportesRouter.get('/productos-mas-vendidos', productosMasVendidos);
+reportesRouter.get('/movimientos',            movimientos);
+
+module.exports = { authRouter, productosRouter, documentosRouter, comprasRouter, usuariosRouter, dashboardRouter, reportesRouter };
