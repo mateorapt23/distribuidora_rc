@@ -173,57 +173,81 @@ export default function Tabla({ onGuardado }) {
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Cabecera del documento */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
-        padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.textDim, letterSpacing: 1.2,
-          textTransform: 'uppercase', marginBottom: 16 }}>
-          Datos del documento
+      {/* Tabla de productos — estilo Excel Ferretería */}
+      <div style={{ border: '2px solid #333', borderRadius: 2, overflow: 'hidden',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+
+        {/* Header empresa estilo imagen */}
+        <div style={{ display: 'flex', alignItems: 'stretch' }}>
+          <div style={{ background: '#F5C400', flex: 1, padding: '14px 20px',
+            display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#111', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Distribuidora RC
+            </div>
+            <div style={{ fontSize: 11, color: '#333', marginTop: 5, lineHeight: 1.8 }}>
+              <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
+              <strong>TELÉFONO:</strong> 0998024883 – 0984666022
+            </div>
+          </div>
+          <div style={{ background: '#0D111C', minWidth: 200, display: 'flex',
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            padding: '14px 20px', gap: 4 }}>
+            <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: 1 }}>
+              NUEVO DOCUMENTO
+            </div>
+            <div style={{ fontSize: 13, color: '#bfdbfe', marginTop: 2 }}>
+              {fecha}
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ flex: 3, minWidth: 200 }}>
-            <Label>Cliente</Label>
+
+        {/* Fila cliente */}
+        <div style={{ background: '#fef3c7', borderTop: '1px solid #333', borderBottom: '1px solid #aaa',
+          padding: '8px 16px', display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 2, minWidth: 180 }}>
+            <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>CLIENTE:</span>
             <input value={cliente} onChange={e => setCliente(e.target.value)}
-              placeholder="Consumidor Final" style={inputSt} />
+              placeholder="Consumidor Final"
+              style={{ ...celdaSt, flex: 1, background: 'transparent', border: '1px solid #d97706',
+                fontWeight: 700, fontSize: 13, color: '#111' }} />
           </div>
-          <div style={{ flex: 1, minWidth: 150 }}>
-            <Label>Fecha</Label>
-            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inputSt} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 160 }}>
+            <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>FECHA:</span>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
+              style={{ ...celdaSt, background: 'transparent', border: '1px solid #d97706',
+                fontWeight: 600, fontSize: 12, color: '#111' }} />
           </div>
-          <div style={{ flex: 3, minWidth: 200 }}>
-            <Label>Notas / Observaciones</Label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 2, minWidth: 160 }}>
+            <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>NOTAS:</span>
             <input value={notas} onChange={e => setNotas(e.target.value)}
-              placeholder="Opcional..." style={inputSt} />
+              placeholder="Opcional..."
+              style={{ ...celdaSt, flex: 1, background: 'transparent', border: '1px solid #d97706',
+                fontSize: 12, color: '#111' }} />
           </div>
-        </div>
-      </div>
-
-      {/* Tabla de productos */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
-        boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-
-        <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim,
-            letterSpacing: 1.2, textTransform: 'uppercase' }}>
-            Productos
-          </span>
-          <span style={{ fontSize: 12, color: C.textDim }}>
-            {filas.filter(f => f.descripcion).length} ítem(s)
-          </span>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#f9fafb' }}>
-                {['#', 'Código', 'Descripción', 'Cant.', 'Precio unit.', 'IVA %', 'Subtotal', ''].map((h, i) => (
+              <tr style={{ background: '#0D111C' }}>
+                {[
+                  { label: '#',            align: 'center', w: 36 },
+                  { label: 'Código',       align: 'left',   w: 110 },
+                  { label: 'Descripción',  align: 'left',   w: null },
+                  { label: 'Cant.',        align: 'center', w: 80 },
+                  { label: 'V. Unitario',  align: 'right',  w: 105 },
+                  { label: 'IVA %',        align: 'center', w: 72 },
+                  { label: 'V. Total',     align: 'right',  w: 105 },
+                  { label: '',             align: 'center', w: 38 },
+                ].map((h, i) => (
                   <th key={i} style={{
-                    padding: '10px 12px', color: C.textDim, fontWeight: 600,
-                    fontSize: 10, letterSpacing: 1.1, textAlign: i >= 3 ? 'center' : 'left',
-                    borderTop: `1px solid ${C.border}`, borderBottom: `1px solid ${C.border}`,
+                    padding: '9px 10px', color: '#fff', fontWeight: 700,
+                    fontSize: 11, letterSpacing: 0.8, textAlign: h.align,
+                    borderRight: i < 7 ? '1px solid #1a3a7a' : 'none',
                     textTransform: 'uppercase', whiteSpace: 'nowrap',
+                    width: h.w || undefined,
                   }}>
-                    {h}
+                    {h.label}
                   </th>
                 ))}
               </tr>
@@ -231,16 +255,17 @@ export default function Tabla({ onGuardado }) {
             <tbody>
               {filas.map((fila, idx) => (
                 <tr key={fila._id} style={{
-                  borderBottom: `1px solid ${C.border}`,
-                  background: idx % 2 === 0 ? '#fff' : '#fafafa',
+                  borderBottom: '1px solid #d1d5db',
+                  background: idx % 2 === 0 ? '#ffffff' : '#fef9c3',
                   transition: 'background .1s',
                 }}>
-                  <td style={{ padding: '8px 12px', color: C.textDim, fontSize: 12, width: 32, textAlign: 'center' }}>
+                  <td style={{ padding: '7px 10px', color: C.textDim, fontSize: 12, textAlign: 'center',
+                    borderRight: '1px solid #e5e7eb' }}>
                     {idx + 1}
                   </td>
 
-                  {/* Código — sin dropdown interno */}
-                  <td style={{ padding: '6px 6px', width: 120 }}>
+                  {/* Código */}
+                  <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input
                       ref={el => { if (filaActiva === fila._id) autocompleteRef.current = el; }}
                       value={fila.codigo}
@@ -252,12 +277,13 @@ export default function Tabla({ onGuardado }) {
                         }
                       }}
                       placeholder="Código"
-                      style={{ ...celdaSt, width: '100%' }}
+                      style={{ ...celdaSt, width: '100%', background: 'transparent',
+                        border: '1px solid transparent', borderRadius: 4 }}
                     />
                   </td>
 
-                  {/* Descripción — sin dropdown interno */}
-                  <td style={{ padding: '6px 6px' }}>
+                  {/* Descripción */}
+                  <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input
                       ref={el => { if (filaActiva === fila._id) autocompleteRef.current = el; }}
                       value={fila.descripcion}
@@ -269,57 +295,120 @@ export default function Tabla({ onGuardado }) {
                         }
                       }}
                       placeholder="Descripción del producto"
-                      style={{ ...celdaSt, width: '100%', minWidth: 200 }}
+                      style={{ ...celdaSt, width: '100%', minWidth: 180, background: 'transparent',
+                        border: '1px solid transparent', borderRadius: 4 }}
                     />
                   </td>
 
-                  <td style={{ padding: '6px 6px', width: 80 }}>
+                  <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input type="number" value={fila.cantidad} min="0.01" step="0.01"
                       onChange={e => actualizarFila(fila._id, { cantidad: e.target.value }, true)}
-                      style={{ ...celdaSt, width: '100%', textAlign: 'center' }} />
+                      style={{ ...celdaSt, width: '100%', textAlign: 'center', background: 'transparent',
+                        border: '1px solid transparent', borderRadius: 4 }} />
                   </td>
-                  <td style={{ padding: '6px 6px', width: 100 }}>
+                  <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input type="number" value={fila.precio} min="0" step="0.01"
                       onChange={e => actualizarFila(fila._id, { precio: e.target.value }, true)}
-                      style={{ ...celdaSt, width: '100%', textAlign: 'right' }} />
+                      style={{ ...celdaSt, width: '100%', textAlign: 'right', background: 'transparent',
+                        border: '1px solid transparent', borderRadius: 4 }} />
                   </td>
-                  <td style={{ padding: '6px 6px', width: 70 }}>
+                  <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input type="number" value={fila.iva} min="0" max="100"
                       onChange={e => actualizarFila(fila._id, { iva: e.target.value }, true)}
-                      style={{ ...celdaSt, width: '100%', textAlign: 'center' }} />
+                      style={{ ...celdaSt, width: '100%', textAlign: 'center', background: 'transparent',
+                        border: '1px solid transparent', borderRadius: 4 }} />
                   </td>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', width: 100, whiteSpace: 'nowrap' }}>
-                    <span style={{ color: parseFloat(fila.subtotal) > 0 ? C.verde : C.textDim,
-                      fontWeight: 700, fontSize: 14 }}>
+                  <td style={{ padding: '7px 12px', textAlign: 'right', whiteSpace: 'nowrap',
+                    borderRight: '1px solid #e5e7eb' }}>
+                    <span style={{ color: parseFloat(fila.subtotal) > 0 ? '#111' : '#9ca3af',
+                      fontWeight: 600, fontSize: 13 }}>
                       ${parseFloat(fila.subtotal).toFixed(2)}
                     </span>
                   </td>
-                  <td style={{ padding: '6px 10px', width: 36, textAlign: 'center' }}>
+                  <td style={{ padding: '4px 6px', textAlign: 'center' }}>
                     <button onClick={() => eliminarFila(fila._id)}
-                      style={{ background: 'none', border: 'none', color: C.textDim,
-                        cursor: 'pointer', padding: 6, borderRadius: 6,
+                      style={{ background: 'none', border: 'none', color: '#d1d5db',
+                        cursor: 'pointer', padding: 5, borderRadius: 4,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         transition: 'all .15s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = C.rojo; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = C.textDim; }}>
+                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#d1d5db'; }}>
                       <IcoTrash />
                     </button>
                   </td>
                 </tr>
               ))}
+
+              {/* Filas vacías de relleno (mínimo 8 filas visibles) */}
+              {Array.from({ length: Math.max(0, 8 - filas.length) }).map((_, i) => (
+                <tr key={`empty-${i}`} style={{
+                  background: (filas.length + i) % 2 === 0 ? '#ffffff' : '#fef9c3',
+                  borderBottom: '1px solid #e5e7eb',
+                }}>
+                  <td style={{ padding: '7px 10px', borderRight: '1px solid #e5e7eb',
+                    color: '#e5e7eb', fontSize: 12, textAlign: 'center' }}>{filas.length + i + 1}</td>
+                  <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
+                  <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
+                  <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
+                  <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
+                  <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
+                  <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px', textAlign: 'right',
+                    color: '#9ca3af', fontSize: 12 }}>0,00</td>
+                  <td>&nbsp;</td>
+                </tr>
+              ))}
+
+              {/* Subtotal / IVA si aplica */}
+              {totalIva > 0 && <>
+                <tr style={{ background: '#f9fafb', borderTop: '1px solid #d1d5db' }}>
+                  <td colSpan={5} style={{ borderRight: '1px solid #e5e7eb' }}></td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right', color: '#6b7280',
+                    fontWeight: 600, fontSize: 12, borderRight: '1px solid #e5e7eb' }}>Subtotal:</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600,
+                    fontSize: 13, color: '#374151', borderRight: '1px solid #e5e7eb' }}>
+                    ${subtotalBase.toFixed(2)}
+                  </td>
+                  <td></td>
+                </tr>
+                <tr style={{ background: '#f9fafb' }}>
+                  <td colSpan={5} style={{ borderRight: '1px solid #e5e7eb' }}></td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right', color: '#6b7280',
+                    fontWeight: 600, fontSize: 12, borderRight: '1px solid #e5e7eb' }}>IVA:</td>
+                  <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600,
+                    fontSize: 13, color: '#374151', borderRight: '1px solid #e5e7eb' }}>
+                    ${totalIva.toFixed(2)}
+                  </td>
+                  <td></td>
+                </tr>
+              </>}
+
+              {/* Fila TOTAL */}
+              <tr style={{ background: '#F5C400', borderTop: '2px solid #333', borderBottom: '2px solid #333' }}>
+                <td colSpan={5} style={{ padding: '10px 12px', borderRight: '1px solid #d97706' }}></td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900,
+                  fontSize: 13, color: '#111', textTransform: 'uppercase', letterSpacing: 1,
+                  borderRight: '1px solid #d97706' }}>
+                  TOTAL
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900,
+                  fontSize: 16, color: '#111', borderRight: '1px solid #d97706' }}>
+                  ${total.toFixed(2)}
+                </td>
+                <td></td>
+              </tr>
             </tbody>
           </table>
         </div>
 
         {/* Agregar fila */}
-        <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.border}` }}>
+        <div style={{ padding: '10px 14px', borderTop: '1px solid #e5e7eb', background: '#fafafa' }}>
           <button onClick={agregarFila}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              background: 'none', border: `1px dashed ${C.border}`, color: C.textDim,
-              borderRadius: 8, padding: '8px 0', cursor: 'pointer', fontSize: 13,
+              background: 'none', border: `1px dashed #d1d5db`, color: C.textDim,
+              borderRadius: 6, padding: '7px 0', cursor: 'pointer', fontSize: 12,
               width: '100%', transition: 'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = C.azul; e.currentTarget.style.color = C.azul; e.currentTarget.style.background = '#f0f7ff'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; e.currentTarget.style.background = 'none'; }}>
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#1d4ed8'; e.currentTarget.style.color = '#1d4ed8'; e.currentTarget.style.background = '#eff6ff'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d1d5db'; e.currentTarget.style.color = C.textDim; e.currentTarget.style.background = 'none'; }}>
             <IcoPlus /> Agregar producto
           </button>
         </div>

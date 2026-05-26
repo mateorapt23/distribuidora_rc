@@ -573,78 +573,148 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
   <title>${tipo} ${numero}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: 'Inter', Arial, sans-serif; font-size:13px; color:#111; padding:32px; }
-    .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; padding-bottom:20px; border-bottom:2px solid #f3f4f6; }
-    .empresa { font-size:22px; font-weight:800; color:#111; letter-spacing:-0.5px; }
-    .subtitulo { font-size:12px; color:#9ca3af; margin-top:3px; }
-    .doc-tipo { font-size:26px; font-weight:900; color:#111; text-align:right; }
-    .doc-num  { font-size:14px; color:#6b7280; text-align:right; margin-top:2px; }
-    .doc-fecha { font-size:12px; color:#9ca3af; text-align:right; margin-top:2px; }
-    .cliente-box { background:#f9fafb; border-radius:10px; padding:14px 18px; margin-bottom:22px; border:1px solid #f3f4f6; }
-    .cliente-label { font-size:10px; font-weight:700; color:#9ca3af; letter-spacing:1.2px; text-transform:uppercase; }
-    .cliente-nombre { font-size:16px; font-weight:700; margin-top:3px; color:#111; }
-    table { width:100%; border-collapse:collapse; margin-bottom:20px; }
-    thead th { background:#111; color:#fff; padding:10px 14px; text-align:left; font-size:10px; letter-spacing:1.2px; text-transform:uppercase; font-weight:600; }
-    thead th.right { text-align:right; }
-    tbody td { padding:10px 14px; border-bottom:1px solid #f3f4f6; font-size:13px; }
-    tbody td.right { text-align:right; }
-    tbody tr:nth-child(even) { background:#fafafa; }
-    .totales { display:flex; justify-content:flex-end; margin-top:4px; }
-    .totales-box { width:240px; background:#f9fafb; border-radius:10px; padding:16px 18px; border:1px solid #f3f4f6; }
-    .tot-row { display:flex; justify-content:space-between; margin-bottom:8px; color:#6b7280; font-size:13px; }
-    .tot-final { display:flex; justify-content:space-between; border-top:2px solid #111; padding-top:10px; margin-top:6px; }
-    .tot-final .label { font-weight:800; font-size:16px; }
-    .tot-final .valor { font-weight:900; font-size:24px; color:#f59e0b; }
-    .notas { margin-top:24px; font-size:12px; color:#6b7280; padding-top:14px; border-top:1px solid #f3f4f6; }
-    @media print { body { padding:16px; } }
+    body { font-family: Arial, sans-serif; font-size:12px; color:#111; background:#fff; }
+    .page { width: 720px; margin: 0 auto; padding: 24px; }
+
+    /* ── Cabecera estilo Ferretería Carrión ── */
+    .header {
+      display: flex; justify-content: space-between; align-items: stretch;
+      border: 2px solid #333; margin-bottom: 0;
+    }
+    .header-left {
+      background: #f59e0b; flex: 1;
+      padding: 14px 18px; display: flex; flex-direction: column; justify-content: center;
+    }
+    .empresa-nombre {
+      font-size: 26px; font-weight: 900; color: #111; letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .empresa-info { font-size: 11px; color: #333; margin-top: 6px; line-height: 1.7; }
+    .empresa-info strong { font-weight: 700; }
+    .header-right {
+      background: #1d4ed8; min-width: 180px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 14px 18px; gap: 4px;
+    }
+    .doc-tipo  { font-size: 20px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
+    .doc-num   { font-size: 15px; font-weight: 700; color: #fde68a; }
+    .doc-fecha { font-size: 11px; color: #bfdbfe; margin-top: 2px; }
+
+    /* ── Cliente ── */
+    .cliente-row {
+      background: #fef3c7; border: 1px solid #333; border-top: none;
+      padding: 7px 14px; font-size: 12px;
+      display: flex; gap: 24px; align-items: center;
+    }
+    .cliente-row span { color: #6b7280; font-weight: 600; }
+    .cliente-row strong { color: #111; font-weight: 700; }
+
+    /* ── Tabla ── */
+    table { width: 100%; border-collapse: collapse; border: 1px solid #333; border-top: none; }
+    thead tr { background: #1d4ed8; }
+    thead th {
+      color: #fff; padding: 8px 12px; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.8px; border-right: 1px solid #3b5fc0;
+    }
+    thead th:last-child { border-right: none; }
+    thead th.right { text-align: right; }
+    tbody td { padding: 7px 12px; border-bottom: 1px solid #d1d5db; border-right: 1px solid #e5e7eb; font-size: 12px; }
+    tbody td:last-child { border-right: none; }
+    tbody td.right { text-align: right; }
+    tbody tr:nth-child(even) { background: #fef9c3; }
+    tbody tr:nth-child(odd)  { background: #ffffff; }
+
+    /* Filas vacías */
+    .fila-vacia td { color: #d1d5db; padding: 6px 12px; border-bottom: 1px solid #e5e7eb; }
+
+    /* ── Total ── */
+    .total-row { background: #f59e0b !important; }
+    .total-row td {
+      font-weight: 900; font-size: 14px; color: #111;
+      border-top: 2px solid #333; border-bottom: 2px solid #333;
+    }
+    .total-row td.total-label { text-align: right; text-transform: uppercase; letter-spacing: 1px; }
+    .total-row td.total-valor { text-align: right; font-size: 15px; }
+
+    .notas { margin-top: 16px; font-size: 11px; color: #6b7280; }
+    @media print { .page { padding: 12px; } body { background: #fff; } }
   </style>
 </head>
 <body>
+<div class="page">
+
+  <!-- Header -->
   <div class="header">
-    <div>
-      <div class="empresa">Distribuidora RC</div>
-      <div class="subtitulo">Materiales de construcción</div>
+    <div class="header-left">
+      <div class="empresa-nombre">Distribuidora RC</div>
+      <div class="empresa-info">
+        <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br>
+        <strong>TELÉFONO:</strong> 0998024883 – 0984666022
+      </div>
     </div>
-    <div>
+    <div class="header-right">
       <div class="doc-tipo">${tipo}</div>
-      <div class="doc-num">${numero}</div>
+      <div class="doc-num">N° ${numero}</div>
       <div class="doc-fecha">${fecha}</div>
     </div>
   </div>
-  <div class="cliente-box">
-    <div class="cliente-label">Cliente</div>
-    <div class="cliente-nombre">${cliente}</div>
+
+  <!-- Cliente -->
+  <div class="cliente-row">
+    <span>CLIENTE: <strong>${cliente}</strong></span>
+    ${notas ? `<span>NOTAS: <strong>${notas}</strong></span>` : ''}
   </div>
+
+  <!-- Tabla -->
   <table>
     <thead>
       <tr>
-        <th>Descripción</th>
-        <th class="right">Cant.</th>
-        <th class="right">Precio</th>
-        <th class="right">IVA %</th>
-        <th class="right">Subtotal</th>
+        <th style="width:60px">CANT.</th>
+        <th>DESCRIPCIÓN</th>
+        <th class="right" style="width:100px">V. UNITARIO</th>
+        <th class="right" style="width:90px">IVA %</th>
+        <th class="right" style="width:100px">V. TOTAL</th>
       </tr>
     </thead>
     <tbody>
       ${filas.map(f => `
         <tr>
-          <td>${f.descripcion}</td>
           <td class="right">${parseFloat(f.cantidad)}</td>
+          <td>${f.descripcion}</td>
           <td class="right">$${parseFloat(f.precio).toFixed(2)}</td>
           <td class="right">${parseFloat(f.iva || 0)}%</td>
           <td class="right">$${(parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva) || 0) / 100)).toFixed(2)}</td>
         </tr>
       `).join('')}
+      <!-- Filas vacías de relleno visual -->
+      ${Array.from({ length: Math.max(0, 10 - filas.length) }).map(() => `
+        <tr class="fila-vacia">
+          <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+          <td class="right">0,00</td>
+        </tr>
+      `).join('')}
+      <!-- Subtotal si hay IVA -->
+      ${totalIva > 0 ? `
+        <tr>
+          <td colspan="3"></td>
+          <td style="text-align:right; font-weight:600; color:#6b7280;">Subtotal:</td>
+          <td class="right">$${subtotalBase.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td colspan="3"></td>
+          <td style="text-align:right; font-weight:600; color:#6b7280;">IVA:</td>
+          <td class="right">$${totalIva.toFixed(2)}</td>
+        </tr>
+      ` : ''}
+      <!-- Total final -->
+      <tr class="total-row">
+        <td colspan="4" class="total-label">TOTAL</td>
+        <td class="right total-valor">$${total.toFixed(2)}</td>
+      </tr>
     </tbody>
   </table>
-  <div class="totales">
-    <div class="totales-box">
-      <div class="tot-row"><span>Subtotal:</span><span>$${subtotalBase.toFixed(2)}</span></div>
-      <div class="tot-row"><span>IVA:</span><span>$${totalIva.toFixed(2)}</span></div>
-      <div class="tot-final"><span class="label">TOTAL</span><span class="valor">$${total.toFixed(2)}</span></div>
-    </div>
-  </div>
-  ${notas ? `<div class="notas">Notas: ${notas}</div>` : ''}
+
+</div>
 </body>
 </html>
 `;
