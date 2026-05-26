@@ -582,7 +582,7 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
       border: 2px solid #333; margin-bottom: 0;
     }
     .header-left {
-      background: #f59e0b; flex: 1;
+      background: #F5C400; flex: 1;
       padding: 14px 18px; display: flex; flex-direction: column; justify-content: center;
     }
     .empresa-nombre {
@@ -592,7 +592,7 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
     .empresa-info { font-size: 11px; color: #333; margin-top: 6px; line-height: 1.7; }
     .empresa-info strong { font-weight: 700; }
     .header-right {
-      background: #1d4ed8; min-width: 180px;
+      background: #0D111C; min-width: 180px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       padding: 14px 18px; gap: 4px;
     }
@@ -611,7 +611,7 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
 
     /* ── Tabla ── */
     table { width: 100%; border-collapse: collapse; border: 1px solid #333; border-top: none; }
-    thead tr { background: #1d4ed8; }
+    thead tr { background: #0D111C; }
     thead th {
       color: #fff; padding: 8px 12px; font-size: 11px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.8px; border-right: 1px solid #3b5fc0;
@@ -628,7 +628,7 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
     .fila-vacia td { color: #d1d5db; padding: 6px 12px; border-bottom: 1px solid #e5e7eb; }
 
     /* ── Total ── */
-    .total-row { background: #f59e0b !important; }
+    .total-row { background: #F5C400 !important; }
     .total-row td {
       font-weight: 900; font-size: 14px; color: #111;
       border-top: 2px solid #333; border-bottom: 2px solid #333;
