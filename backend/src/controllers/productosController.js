@@ -179,10 +179,7 @@ const importarExcel = async (req, res) => {
     const mapearFila = (fila) => ({
       codigo:        (g(fila, 'Código', 'Codigo', 'codigo', 'CODIGO') || '').toString().trim(),
       descripcion:   (g(fila, 'Descripción', 'Descripcion', 'descripcion', 'DESCRIPCION') || '').toString().replace(/[\t\n\r]+/g, ' ').trim(),
-      inventariable: (() => {
-        const v = (g(fila, 'Inventariable', 'inventariable') || '').toString().trim().toUpperCase();
-        return v === 'SI' || v === 'SÍ' || v === 'YES' || v === '1' || v === 'TRUE';
-      })(),
+      inventariable: true, // siempre true al importar, ignorar valor del Excel
       stock:        parseFloat(g(fila, 'Stock', 'stock') || 0) || 0,
       stock_minimo: parseFloat(g(fila, 'Stock Mínimo', 'Stock Minimo', 'stock_minimo') || 0) || 0,
       iva:          parseFloat(g(fila, 'Iva(%)', 'IVA(%)', 'IVA', 'iva', 'iva(%)') || 0) || 0,
@@ -272,4 +269,15 @@ const exportarExcel = async (req, res) => {
   }
 };
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, ajusteStock, importarExcel, exportarExcel };
+const fixInventariable = async (req, res) => {
+  try {
+    const { rowCount } = await pool.query(
+      'UPDATE productos SET inventariable = TRUE WHERE inventariable = FALSE'
+    );
+    res.json({ mensaje: `${rowCount} productos actualizados a inventariable = true` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { listar, obtener, crear, actualizar, eliminar, ajusteStock, importarExcel, exportarExcel, fixInventariable };
