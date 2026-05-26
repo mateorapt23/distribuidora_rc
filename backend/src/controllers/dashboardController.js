@@ -2,20 +2,42 @@ const pool = require('../config/db');
 
 const resumen = async (req, res) => {
   try {
+    const STOCK_CON_MOVIMIENTO = `
+      EXISTS (
+        SELECT 1 FROM movimiento_stock ms
+        WHERE ms.producto_id = p.id
+          AND ms.tipo IN ('entrada_compra', 'ajuste_manual')
+          AND ms.cantidad > 0
+      )
+    `;
+
     const [productos, stockBajo, proformasHoy, recibosHoy, ventasMes, comprasMes] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM productos WHERE activo = TRUE'),
-      pool.query('SELECT COUNT(*) FROM productos WHERE activo = TRUE AND inventariable = TRUE AND stock <= stock_minimo AND stock_minimo > 0'),
+      pool.query(`
+        SELECT COUNT(*) FROM productos p
+        WHERE p.activo = TRUE AND p.inventariable = TRUE
+          AND p.stock <= 5
+          AND ${STOCK_CON_MOVIMIENTO}
+      `),
       pool.query("SELECT COUNT(*) FROM documentos WHERE tipo = 'proforma' AND fecha = CURRENT_DATE"),
       pool.query("SELECT COUNT(*), COALESCE(SUM(total),0) as total FROM documentos WHERE tipo = 'recibo' AND fecha = CURRENT_DATE"),
       pool.query("SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cantidad FROM documentos WHERE tipo = 'recibo' AND DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)"),
       pool.query("SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cantidad FROM compras WHERE DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)"),
     ]);
 
-    const { rows: alertas } = await pool.query(
-      `SELECT codigo, descripcion, stock, stock_minimo FROM productos
-       WHERE activo = TRUE AND inventariable = TRUE AND stock <= stock_minimo AND stock_minimo > 0
-       ORDER BY (stock - stock_minimo) ASC LIMIT 10`
-    );
+    const { rows: alertas } = await pool.query(`
+      SELECT p.codigo, p.descripcion, p.stock, p.stock_minimo
+      FROM productos p
+      WHERE p.activo = TRUE AND p.inventariable = TRUE
+        AND p.stock <= 5
+        AND EXISTS (
+          SELECT 1 FROM movimiento_stock ms
+          WHERE ms.producto_id = p.id
+            AND ms.tipo IN ('entrada_compra', 'ajuste_manual')
+            AND ms.cantidad > 0
+        )
+      ORDER BY (p.stock - p.stock_minimo) ASC LIMIT 10
+    `);
 
     const { rows: ultimosRecibos } = await pool.query(
       `SELECT numero, cliente, total, fecha FROM documentos

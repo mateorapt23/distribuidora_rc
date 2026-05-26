@@ -148,17 +148,46 @@ const importarExcel = async (req, res) => {
   try {
     const workbook = xlsx.readFile(req.file.path);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const filas = xlsx.utils.sheet_to_json(sheet);
+
+    // Buscar la fila que contiene los headers reales (puede haber filas vacías al inicio)
+    const raw = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const headerRowIdx = raw.findIndex(row =>
+      row.some(cell => typeof cell === 'string' && cell.trim() !== '')
+    );
+    if (headerRowIdx === -1) return res.status(400).json({ error: 'No se encontraron encabezados en el archivo' });
+
+    const headers = raw[headerRowIdx].map(h => (h || '').toString().trim());
+    const dataRows = raw.slice(headerRowIdx + 1);
+
+    // Convertir cada fila en objeto usando los headers encontrados
+    const filas = dataRows
+      .map(row => {
+        const obj = {};
+        headers.forEach((h, i) => { obj[h] = row[i] ?? ''; });
+        return obj;
+      })
+      .filter(obj => headers.some(h => obj[h] !== ''));
+
+    const g = (fila, ...keys) => {
+      for (const k of keys) {
+        const found = Object.keys(fila).find(fk => fk.trim().toLowerCase() === k.toLowerCase());
+        if (found !== undefined && fila[found] !== '' && fila[found] !== null && fila[found] !== undefined) return fila[found];
+      }
+      return undefined;
+    };
 
     const mapearFila = (fila) => ({
-      codigo:       fila['Código'] || fila['codigo'] || fila['CODIGO'] || '',
-      descripcion:  fila['Descripción'] || fila['descripcion'] || fila['DESCRIPCION'] || '',
-      inventariable: fila['Inventariable'] !== undefined ? Boolean(fila['Inventariable']) : true,
-      stock:        parseFloat(fila['Stock'] || fila['stock'] || 0) || 0,
-      stock_minimo: parseFloat(fila['Stock Mínimo'] || fila['stock_minimo'] || 0) || 0,
-      iva:          parseFloat(fila['IVA'] || fila['iva'] || 0) || 0,
-      pvp1:         parseFloat(fila['PVP1'] || fila['pvp1'] || fila['Precio 1'] || 0) || 0,
-      pvp2:         parseFloat(fila['PVP2'] || fila['pvp2'] || fila['Precio 2'] || 0) || 0,
+      codigo:        (g(fila, 'Código', 'Codigo', 'codigo', 'CODIGO') || '').toString().trim(),
+      descripcion:   (g(fila, 'Descripción', 'Descripcion', 'descripcion', 'DESCRIPCION') || '').toString().replace(/[\t\n\r]+/g, ' ').trim(),
+      inventariable: (() => {
+        const v = (g(fila, 'Inventariable', 'inventariable') || '').toString().trim().toUpperCase();
+        return v === 'SI' || v === 'SÍ' || v === 'YES' || v === '1' || v === 'TRUE';
+      })(),
+      stock:        parseFloat(g(fila, 'Stock', 'stock') || 0) || 0,
+      stock_minimo: parseFloat(g(fila, 'Stock Mínimo', 'Stock Minimo', 'stock_minimo') || 0) || 0,
+      iva:          parseFloat(g(fila, 'Iva(%)', 'IVA(%)', 'IVA', 'iva', 'iva(%)') || 0) || 0,
+      pvp1:         parseFloat(g(fila, 'Pvp1', 'PVP1', 'pvp1', 'Precio 1', 'precio1') || 0) || 0,
+      pvp2:         parseFloat(g(fila, 'Pvp2', 'PVP2', 'pvp2', 'Precio 2', 'precio2') || 0) || 0,
     });
 
     const client = await pool.connect();

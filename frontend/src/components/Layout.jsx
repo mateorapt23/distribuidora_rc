@@ -148,37 +148,68 @@ export default function Layout({ children }) {
           cursor: 'pointer', userSelect: 'none',
         }}
       >
+        {/* Barrita horizontal multicolor en la parte superior */}
+        <div style={{
+          height: 3, flexShrink: 0,
+          background: 'linear-gradient(to right, #3b82f6, #F5C400, #10b981)',
+        }} />
+
         {/* Logo */}
         <div style={{
-          padding: '16px 12px 14px',
+          padding: open ? '14px 12px 12px' : '12px 0',
           borderBottom: `1px solid ${S.border}`,
-          display: 'flex', alignItems: 'center', gap: 10,
           overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0,
         }}>
+          {/* Fila superior: icono + texto */}
           <div style={{
-            width: 30, height: 30, flexShrink: 0,
-            background: 'linear-gradient(135deg, #F5C400, #e6a800)',
-            borderRadius: 8,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            display: 'flex', alignItems: 'center',
+            gap: 10,
+            justifyContent: open ? 'flex-start' : 'center',
           }}>
-            <svg viewBox="0 0 16 16" style={{ width: 14, height: 14, stroke: '#0D111C', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round' }}>
-              <path d="M2 8h12M8 2v12" />
-            </svg>
+            {/* Icono + (reemplazar por logo oficial) */}
+            <div style={{
+              width: 34, height: 34, flexShrink: 0,
+              background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+              borderRadius: 9,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(245,196,0,0.22)',
+            }}>
+              <svg viewBox="0 0 16 16" style={{ width: 15, height: 15, stroke: '#0D111C', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round' }}>
+                <path d="M2 8h12M8 2v12" />
+              </svg>
+            </div>
+
+            {open && (
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 800, color: S.gold,
+                  letterSpacing: '2.8px', textTransform: 'uppercase',
+                  whiteSpace: 'nowrap', lineHeight: 1,
+                }}>
+                  Distribuidora
+                </div>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: '#E8EDF2',
+                  letterSpacing: '.2px', whiteSpace: 'nowrap',
+                  marginTop: 3, lineHeight: 1.2,
+                }}>
+                  Rodríguez-Carrión
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Subtítulo */}
           {open && (
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{
-                fontSize: 13, fontWeight: 700, color: '#E8EDF2',
-                letterSpacing: '.1px', whiteSpace: 'nowrap',
-              }}>
-                Distribuidora RC
-              </div>
-              <div style={{
-                fontSize: 9, color: S.label, fontWeight: 600,
-                letterSpacing: '.8px', textTransform: 'uppercase', whiteSpace: 'nowrap',
-              }}>
-                Materiales · Gestión
-              </div>
+            <div style={{
+              fontSize: 8.5, color: S.label, fontWeight: 500,
+              letterSpacing: '1.1px', textTransform: 'uppercase',
+              whiteSpace: 'nowrap', marginTop: 8, paddingLeft: 2,
+            }}>
+              Materiales de Construcción
             </div>
           )}
         </div>

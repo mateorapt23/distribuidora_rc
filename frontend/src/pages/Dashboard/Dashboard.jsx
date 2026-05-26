@@ -81,12 +81,12 @@ const SinDatos = ({ mensaje = 'Sin datos' }) => (
 const LabelDona = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
   if (percent < 0.06) return null;
   const rad = Math.PI / 180;
-  const r = innerRadius + (outerRadius - innerRadius) * 0.6;
+  const r = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + r * Math.cos(-midAngle * rad);
   const y = cy + r * Math.sin(-midAngle * rad);
   return (
     <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central"
-      fontSize={10} fontWeight={700}>
+      fontSize={9} fontWeight={700}>
       {`${(percent * 100).toFixed(0)}%`}
     </text>
   );
@@ -221,7 +221,7 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height={210}>
               <PieChart>
                 <Pie data={datosDona} cx="50%" cy="50%"
-                  innerRadius={52} outerRadius={80}
+                  innerRadius={50} outerRadius={85}
                   dataKey="value" labelLine={false} label={LabelDona}>
                   <Cell fill={C.verde}   stroke="#fff" strokeWidth={2} />
                   <Cell fill={C.amarillo} stroke="#fff" strokeWidth={2} />

@@ -103,14 +103,7 @@ const parsearExcel = (buffer) => {
       mapaFacturas.set(nroTrim, {
         nro_factura: nroTrim,
         fecha:       toDate(row[idxFecha]),
-        cedula_ruc:  (() => {
-          const v = row[idxCedula];
-          if (v === null || v === undefined || v === '') return '';
-          // Evitar notación científica en RUCs largos (ej: 1.79e+12 → "1791982894001")
-          const n = Number(v);
-          if (!isNaN(n) && Math.abs(n) > 999999) return Math.round(n).toString();
-          return v.toString().trim();
-        })(),
+        cedula_ruc:  (row[idxCedula] || '').toString().trim(),
         cliente:     (row[idxCliente] || '').toString().trim(),
         estado:      row[idxEstado] ? row[idxEstado].toString().trim().toUpperCase() : 'AUTORIZADO',
         lineas:      [],
@@ -154,7 +147,7 @@ const importar = [
       let insertadas = 0, actualizadas = 0, stockMovimientos = 0;
 
       for (const fac of facturas) {
-        // 1. UPSERT cabecera de factura
+        // 1. UPSERT cabecera de factura (sin xmax, no es confiable)
         const r = await client.query(
           `INSERT INTO facturas_efacilito
              (nro_factura, fecha, cedula_ruc, cliente, estado, total, archivo_origen, usuario_id)
@@ -166,7 +159,7 @@ const importar = [
              estado        = EXCLUDED.estado,
              total         = EXCLUDED.total,
              archivo_origen= EXCLUDED.archivo_origen
-           RETURNING id, (xmax = 0) AS inserted`,
+           RETURNING id`,
           [
             fac.nro_factura, fac.fecha, fac.cedula_ruc, fac.cliente,
             fac.estado, fac.total,
@@ -176,19 +169,25 @@ const importar = [
         );
 
         const facturaId = r.rows[0].id;
-        const esNueva   = r.rows[0].inserted;
 
-        if (esNueva) {
-          insertadas++;
-        } else {
+        // Verificar explícitamente si ya tiene movimientos de stock registrados
+        const movExist = await client.query(
+          `SELECT 1 FROM movimiento_stock
+           WHERE referencia_id = $1 AND referencia_tipo = 'facturas_efacilito' LIMIT 1`,
+          [facturaId]
+        );
+        const yaTieneMovimientos = movExist.rowCount > 0;
+
+        if (yaTieneMovimientos) {
           actualizadas++;
-          // Borrar el detalle anterior para re-insertar actualizado
+          // Ya fue procesada antes: solo actualizar detalle, NO volver a descontar stock
           await client.query('DELETE FROM facturas_efacilito_detalle WHERE factura_id = $1', [facturaId]);
+        } else {
+          insertadas++;
         }
 
-        // 2. Insertar líneas de detalle y descontar stock (solo en facturas nuevas)
+        // 2. Insertar líneas de detalle y descontar stock (solo si no tenía movimientos previos)
         for (const linea of fac.lineas) {
-          // Buscar producto por código
           let productoId = null;
           if (linea.codigo) {
             const pRes = await client.query(
@@ -198,8 +197,7 @@ const importar = [
             if (pRes.rows.length > 0) {
               productoId = pRes.rows[0].id;
 
-              // Descontar stock solo en facturas nuevas (no duplicar en re-importación)
-              if (esNueva && linea.cantidad > 0) {
+              if (!yaTieneMovimientos && linea.cantidad > 0) {
                 const stockAnterior = parseFloat(pRes.rows[0].stock);
                 const stockNuevo    = stockAnterior - linea.cantidad;
 
@@ -384,17 +382,54 @@ const exportar = async (req, res) => {
 
 // ════════════════════════════════════════════════════════════
 // DELETE /api/facturas-ef/:id
+// Revierte el stock antes de eliminar la factura
 // ════════════════════════════════════════════════════════════
 const eliminar = async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { rowCount } = await pool.query(
-      'DELETE FROM facturas_efacilito WHERE id = $1', [req.params.id]
+    await client.query('BEGIN');
+
+    const facturaId = req.params.id;
+
+    // 1. Obtener todos los movimientos de stock de esta factura
+    const { rows: movs } = await client.query(
+      `SELECT producto_id, cantidad FROM movimiento_stock
+       WHERE referencia_id = $1 AND referencia_tipo = 'facturas_efacilito'`,
+      [facturaId]
     );
-    if (rowCount === 0) return res.status(404).json({ error: 'Factura no encontrada.' });
-    res.json({ ok: true });
+
+    // 2. Revertir el stock de cada producto (sumar lo que se descontó)
+    for (const mov of movs) {
+      await client.query(
+        'UPDATE productos SET stock = stock + $1 WHERE id = $2',
+        [parseFloat(mov.cantidad), mov.producto_id]
+      );
+    }
+
+    // 3. Borrar los movimientos de stock de esta factura
+    await client.query(
+      `DELETE FROM movimiento_stock
+       WHERE referencia_id = $1 AND referencia_tipo = 'facturas_efacilito'`,
+      [facturaId]
+    );
+
+    // 4. Borrar la factura (el detalle se borra por CASCADE)
+    const { rowCount } = await client.query(
+      'DELETE FROM facturas_efacilito WHERE id = $1', [facturaId]
+    );
+    if (rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Factura no encontrada.' });
+    }
+
+    await client.query('COMMIT');
+    res.json({ ok: true, movimientosRevertidos: movs.length });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('[facturas-ef] eliminar:', err.message);
     res.status(500).json({ error: 'Error al eliminar.' });
+  } finally {
+    client.release();
   }
 };
 

@@ -182,11 +182,21 @@ export default function Productos() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
-                {['Código', 'Descripción', 'Inventariable', 'Stock', 'Stock Mín.', 'IVA %', 'PVP1', 'PVP2', 'Acciones'].map(h => (
-                  <th key={h} style={{ padding: '12px 16px', color: C.textDim, fontWeight: 600,
-                    fontSize: 11, letterSpacing: 1, textAlign: 'left',
+                {[
+                  { label: 'Código',       align: 'left'   },
+                  { label: 'Descripción',  align: 'left'   },
+                  { label: 'Inventariable',align: 'center' },
+                  { label: 'Stock',        align: 'center' },
+                  { label: 'Stock Mín.',   align: 'center' },
+                  { label: 'IVA %',        align: 'center' },
+                  { label: 'PVP1',         align: 'right'  },
+                  { label: 'PVP2',         align: 'right'  },
+                  { label: 'Acciones',     align: 'left'   },
+                ].map(({ label, align }) => (
+                  <th key={label} style={{ padding: '12px 16px', color: C.textDim, fontWeight: 600,
+                    fontSize: 11, letterSpacing: 1, textAlign: align,
                     borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase' }}>
-                    {h}
+                    {label}
                   </th>
                 ))}
               </tr>
