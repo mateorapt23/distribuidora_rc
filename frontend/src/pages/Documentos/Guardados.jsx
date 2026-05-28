@@ -610,11 +610,12 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
     .cliente-row strong { color: #111; font-weight: 700; }
 
     /* ── Tabla ── */
-    table { width: 100%; border-collapse: collapse; border: 1px solid #333; border-top: none; }
+    table { width: 100%; border-collapse: collapse; border: 1px solid #333; border-top: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     thead tr { background: #0D111C; }
     thead th {
       color: #fff; padding: 8px 12px; font-size: 11px; font-weight: 700;
       text-transform: uppercase; letter-spacing: 0.8px; border-right: 1px solid #3b5fc0;
+      border-bottom: 2px solid #333;
     }
     thead th:last-child { border-right: none; }
     thead th.right { text-align: right; }
