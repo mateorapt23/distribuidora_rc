@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
+import { generarHTMLTermica } from './Tabla';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -15,8 +16,11 @@ const IcoConvert = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="n
 const IcoPrint   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>;
 const IcoTrash   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>;
 const IcoSearch  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+const IcoThermal = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/><line x1="9" y1="17" x2="15" y2="17"/></svg>;
+const IcoPDF     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>;
+const IcoTabla   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>;
 
-export default function Guardados() {
+export default function Guardados({ onVerEnTabla }) {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'admin';
 
@@ -140,6 +144,42 @@ export default function Guardados() {
     win.document.close(); win.print();
   };
 
+  const imprimirTermica = (doc, detalleImp) => {
+    const filas = detalleImp || detalle;
+    const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
+    const totalIva     = filas.reduce((s, f) => {
+      const base = parseFloat(f.cantidad) * parseFloat(f.precio);
+      return s + base * ((parseFloat(f.iva) || 0) / 100);
+    }, 0);
+    const html = generarHTMLTermica({
+      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
+      notas: doc.notas || '', filas,
+      subtotalBase, totalIva, total: subtotalBase + totalIva,
+    });
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  };
+
+  const verEnTabla = () => {
+    setModalEditar(false);
+    if (onVerEnTabla) onVerEnTabla({
+      id: docSeleccionado.id,
+      tipo: docSeleccionado.tipo,
+      cliente: editCliente,
+      fecha: editFecha,
+      notas: editNotas,
+      filas: editFilas,
+    });
+  };
+
   const actualizarFilaEditar = (id, campo, valor) => {
     setEditFilas(prev => prev.map(f => {
       if (f._id !== id) return f;
@@ -241,11 +281,9 @@ export default function Guardados() {
                     <BtnSm color={C.azul} outline onClick={() => abrirDetalle(doc)} icon={<IcoEye />}>
                       Ver
                     </BtnSm>
-                    {doc.tipo === 'proforma' && (
-                      <BtnSm color={C.amarillo} outline onClick={() => abrirEditar(doc)} icon={<IcoEdit />}>
-                        Editar
-                      </BtnSm>
-                    )}
+                    <BtnSm color={C.amarillo} outline onClick={() => abrirEditar(doc)} icon={<IcoEdit />}>
+                      Editar
+                    </BtnSm>
                     {doc.tipo === 'proforma' && (
                       <BtnSm color={C.verde} outline onClick={() => abrirConvertir(doc)} icon={<IcoConvert />}>
                         Recibo
@@ -289,8 +327,11 @@ export default function Guardados() {
           {cargandoDetalle ? <Cargando /> : <TablaDetalle filas={detalle} />}
           <TotalesDoc filas={detalle} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 24 }}>
-            <BtnModal color={C.azul} outline onClick={() => imprimir(docSeleccionado, detalle)} icon={<IcoPrint />}>
-              Imprimir
+            <BtnModal color="#374151" outline onClick={() => imprimirTermica(docSeleccionado, detalle)} icon={<IcoThermal />}>
+              Térmica
+            </BtnModal>
+            <BtnModal color={C.azul} outline onClick={() => imprimir(docSeleccionado, detalle)} icon={<IcoPDF />}>
+              PDF
             </BtnModal>
             <BtnModal color={C.textDim} outline onClick={() => setModalVer(false)}>
               Cerrar
@@ -367,11 +408,16 @@ export default function Guardados() {
           </div>
 
           <TotalesDoc filas={editFilas} />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-            <BtnModal color={C.textDim} outline onClick={() => setModalEditar(false)}>Cancelar</BtnModal>
-            <BtnModal color={C.verde} onClick={guardarEdicion} disabled={guardando} icon={<IcoEdit />}>
-              {guardando ? 'Guardando...' : 'Guardar cambios'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
+            <BtnModal color="#8b5cf6" outline onClick={verEnTabla} icon={<IcoTabla />}>
+              Ver en tabla
             </BtnModal>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <BtnModal color={C.textDim} outline onClick={() => setModalEditar(false)}>Cancelar</BtnModal>
+              <BtnModal color={C.verde} onClick={guardarEdicion} disabled={guardando} icon={<IcoEdit />}>
+                {guardando ? 'Guardando...' : 'Guardar cambios'}
+              </BtnModal>
+            </div>
           </div>
         </Modal>
       )}

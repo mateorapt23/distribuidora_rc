@@ -19,13 +19,14 @@ const IcoPDF      = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="
 const IcoCapture  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
 const IcoX        = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 const IcoDownload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
+const IcoWarn = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 
 const filaVacia = () => ({
   _id: Math.random(), producto_id: null, codigo: '',
   descripcion: '', cantidad: 1, precio: 0, iva: 0, subtotal: 0,
 });
 
-export default function Tabla({ onGuardado }) {
+export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [cliente, setCliente]           = useState('');
   const [fecha, setFecha]               = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotas]               = useState('');
@@ -33,6 +34,8 @@ export default function Tabla({ onGuardado }) {
   const [guardando, setGuardando]       = useState(false);
   const [modalGuardar, setModalGuardar] = useState(false);
   const [modalPDF, setModalPDF]         = useState(false);
+  const [idEdicion, setIdEdicion]       = useState(null);
+  const [tipoEdicion, setTipoEdicion]   = useState(null);
   const tablaRef = useRef(null);
   const [sugerencias, setSugerencias]   = useState([]);
   const [filaActiva, setFilaActiva]     = useState(null);
@@ -55,6 +58,23 @@ export default function Tabla({ onGuardado }) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Cargar datos cuando viene desde "Ver en tabla" en Guardados
+  useEffect(() => {
+    if (!datosEdicion) return;
+    setCliente(datosEdicion.cliente || '');
+    setFecha(datosEdicion.fecha || new Date().toISOString().split('T')[0]);
+    setNotas(datosEdicion.notas || '');
+    setFilas((datosEdicion.filas || []).map(f => ({
+      ...f,
+      _id: Math.random(),
+      subtotal: (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0) * (1 + (parseFloat(f.iva) || 0) / 100),
+    })));
+    setIdEdicion(datosEdicion.id || null);
+    setTipoEdicion(datosEdicion.tipo || null);
+    if (onDatosUsados) onDatosUsados();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datosEdicion]);
 
   // Scroll: mover el dropdown directamente en DOM sin re-render
   useEffect(() => {
@@ -135,6 +155,7 @@ export default function Tabla({ onGuardado }) {
   const limpiarTodo  = () => {
     setFilas([filaVacia()]); setCliente(''); setNotas('');
     setFecha(new Date().toISOString().split('T')[0]);
+    setIdEdicion(null); setTipoEdicion(null);
   };
 
   const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0), 0);
@@ -149,15 +170,24 @@ export default function Tabla({ onGuardado }) {
     if (filasValidas.length === 0) { alert('Agrega al menos un producto'); return; }
     setGuardando(true);
     try {
-      await api.post('/documentos', {
-        tipo, cliente: cliente.trim() || 'Consumidor Final',
-        fecha, notas: notes,
-        detalle: filasValidas.map(f => ({
-          producto_id: f.producto_id, descripcion: f.descripcion,
-          cantidad: parseFloat(f.cantidad), precio: parseFloat(f.precio),
-          iva: parseFloat(f.iva) || 0,
-        })),
-      });
+      const detalle = filasValidas.map(f => ({
+        producto_id: f.producto_id, descripcion: f.descripcion,
+        cantidad: parseFloat(f.cantidad), precio: parseFloat(f.precio),
+        iva: parseFloat(f.iva) || 0,
+      }));
+      if (idEdicion) {
+        // Actualizar documento existente
+        await api.put(`/documentos/${idEdicion}`, {
+          cliente: cliente.trim() || 'Consumidor Final',
+          fecha, notas: notes, detalle,
+        });
+      } else {
+        // Crear nuevo documento
+        await api.post('/documentos', {
+          tipo, cliente: cliente.trim() || 'Consumidor Final',
+          fecha, notas: notes, detalle,
+        });
+      }
       setModalGuardar(false); limpiarTodo(); onGuardado();
     } catch (err) { alert(err.response?.data?.error || 'Error al guardar'); }
     finally { setGuardando(false); }
@@ -167,13 +197,20 @@ export default function Tabla({ onGuardado }) {
 
   const imprimirTermica = () => {
     if (filasValidas.length === 0) { alert('No hay productos para imprimir'); return; }
-    const win = window.open('', '_blank', 'width=320,height=600');
-    win.document.write(generarHTMLTermica({
+    const html = generarHTMLTermica({
       tipo: 'DOCUMENTO', numero: 'BORRADOR',
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
       filas: filasValidas, subtotalBase, totalIva, total,
-    }));
-    win.document.close(); win.print();
+    });
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
   const abrirPDF = () => {
@@ -337,6 +374,24 @@ export default function Tabla({ onGuardado }) {
   return (
     <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
+      {/* Toast flotante — filas manuales */}
+      {filas.some(f => f.descripcion && !f.producto_id) && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 9000,
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+          background: '#fffbeb', border: '1px solid #fcd34d',
+          borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#92400e',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
+          maxWidth: 320, pointerEvents: 'none',
+        }}>
+          <span style={{ color: '#d97706', marginTop: 1, flexShrink: 0 }}><IcoWarn /></span>
+          <span>
+            <strong>Producto manual.</strong> Las filas con <span style={{ color: '#d97706' }}>⚠</span> no
+            están en el inventario — <strong>no se descontará stock</strong> al guardar como recibo.
+          </span>
+        </div>
+      )}
+
       {/* Tabla de productos — estilo Excel Ferretería */}
       <div ref={tablaRef} style={{ border: '2px solid #333', borderRadius: 2, overflow: 'hidden',
         boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
@@ -356,8 +411,8 @@ export default function Tabla({ onGuardado }) {
           <div style={{ background: '#0D111C', minWidth: 200, display: 'flex',
             flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '14px 20px', gap: 4 }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: '#fff', textTransform: 'uppercase', letterSpacing: 1 }}>
-              NUEVO DOCUMENTO
+            <div style={{ fontSize: 18, fontWeight: 900, color: idEdicion ? C.amarillo : '#fff', textTransform: 'uppercase', letterSpacing: 1 }}>
+              {idEdicion ? `EDITANDO ${tipoEdicion?.toUpperCase() || ''}` : 'NUEVO DOCUMENTO'}
             </div>
             <div style={{ fontSize: 13, color: '#bfdbfe', marginTop: 2 }}>
               {fecha}
@@ -424,9 +479,12 @@ export default function Tabla({ onGuardado }) {
                   background: idx % 2 === 0 ? '#ffffff' : '#fef9c3',
                   transition: 'background .1s',
                 }}>
-                  <td style={{ padding: '7px 10px', color: C.textDim, fontSize: 12, textAlign: 'center',
-                    borderRight: '1px solid #e5e7eb' }}>
-                    {idx + 1}
+                  <td style={{ padding: '7px 10px', fontSize: 12, textAlign: 'center',
+                    borderRight: '1px solid #e5e7eb',
+                    color: fila.descripcion && !fila.producto_id ? '#d97706' : C.textDim }}>
+                    {fila.descripcion && !fila.producto_id
+                      ? <span title="Producto manual — sin descuento de stock"><IcoWarn /></span>
+                      : idx + 1}
                   </td>
 
                   {/* Código */}
@@ -477,6 +535,19 @@ export default function Tabla({ onGuardado }) {
                   <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input type="number" value={fila.precio} min="0" step="0.01"
                       onChange={e => actualizarFila(fila._id, { precio: e.target.value }, true)}
+                      onBlur={e => {
+                        const iva = parseFloat(fila.iva) || 0;
+                        if (iva > 0) {
+                          const precioConIva = parseFloat(e.target.value);
+                          if (!isNaN(precioConIva) && precioConIva > 0) {
+                            const precioSinIva = precioConIva / (1 + iva / 100);
+                            actualizarFila(fila._id, { precio: parseFloat(precioSinIva.toFixed(4)) }, true);
+                          }
+                        }
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') e.target.blur();
+                      }}
                       style={{ ...celdaSt, width: '100%', textAlign: 'right', background: 'transparent',
                         border: '1px solid transparent', borderRadius: 4 }} />
                   </td>
@@ -768,38 +839,63 @@ export default function Tabla({ onGuardado }) {
           <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px',
             width: '100%', maxWidth: 420, textAlign: 'center',
             boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
-            <div style={{ width: 56, height: 56, background: '#f0fdf4', borderRadius: 16,
+            <div style={{ width: 56, height: 56, background: idEdicion ? '#fef3c7' : '#f0fdf4', borderRadius: 16,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px', color: C.verde }}>
+              margin: '0 auto 16px', color: idEdicion ? C.amarillo : C.verde }}>
               <IcoSave />
             </div>
-            <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-              ¿Cómo deseas guardar?
-            </h2>
-            <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
-              La <strong style={{ color: C.azul }}>proforma</strong> no descuenta stock.<br/>
-              El <strong style={{ color: C.verde }}>recibo</strong> descuenta stock inmediatamente.
-            </p>
-            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button onClick={() => guardar('proforma')} disabled={guardando}
-                style={{ display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#eff6ff', border: `2px solid ${C.azul}`, color: C.azul,
-                  borderRadius: 12, padding: '14px 24px', fontWeight: 700,
-                  fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = C.azul; e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = C.azul; }}>
-                <IcoProforma /> Proforma
-              </button>
-              <button onClick={() => guardar('recibo')} disabled={guardando}
-                style={{ display: 'flex', alignItems: 'center', gap: 8,
-                  background: '#f0fdf4', border: `2px solid ${C.verde}`, color: C.verde,
-                  borderRadius: 12, padding: '14px 24px', fontWeight: 700,
-                  fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = C.verde; e.currentTarget.style.color = '#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.color = C.verde; }}>
-                <IcoRecibo /> Recibo
-              </button>
-            </div>
+            {idEdicion ? (
+              <>
+                <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                  Guardar cambios
+                </h2>
+                <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
+                  Se actualizará el <strong style={{ color: tipoEdicion === 'recibo' ? C.verde : C.azul }}>
+                    {tipoEdicion === 'recibo' ? 'Recibo' : 'Proforma'}
+                  </strong> existente con los nuevos datos.
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button onClick={() => guardar(tipoEdicion)} disabled={guardando}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8,
+                      background: tipoEdicion === 'recibo' ? C.verde : C.azul,
+                      border: 'none', color: '#fff',
+                      borderRadius: 12, padding: '14px 28px', fontWeight: 700,
+                      fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}>
+                    <IcoSave /> {guardando ? 'Guardando...' : 'Confirmar'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                  ¿Cómo deseas guardar?
+                </h2>
+                <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
+                  La <strong style={{ color: C.azul }}>proforma</strong> no descuenta stock.<br/>
+                  El <strong style={{ color: C.verde }}>recibo</strong> descuenta stock inmediatamente.
+                </p>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <button onClick={() => guardar('proforma')} disabled={guardando}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8,
+                      background: '#eff6ff', border: `2px solid ${C.azul}`, color: C.azul,
+                      borderRadius: 12, padding: '14px 24px', fontWeight: 700,
+                      fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.azul; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = C.azul; }}>
+                    <IcoProforma /> Proforma
+                  </button>
+                  <button onClick={() => guardar('recibo')} disabled={guardando}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8,
+                      background: '#f0fdf4', border: `2px solid ${C.verde}`, color: C.verde,
+                      borderRadius: 12, padding: '14px 24px', fontWeight: 700,
+                      fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = C.verde; e.currentTarget.style.color = '#fff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.color = C.verde; }}>
+                    <IcoRecibo /> Recibo
+                  </button>
+                </div>
+              </>
+            )}
             <button onClick={() => setModalGuardar(false)}
               style={{ background: 'none', border: 'none', color: C.textDim,
                 marginTop: 20, cursor: 'pointer', fontSize: 13 }}>
@@ -953,7 +1049,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
       <span class="cliente-label">CLIENTE:</span>
       <span>${cliente}</span>
     </div>
-    ${notes ? `<div class="cliente-row"><span class="cliente-label">NOTAS:</span><span>${notas}</span></div>` : ''}
+    ${notas ? `<div class="cliente-row"><span class="cliente-label">NOTAS:</span><span>${notas}</span></div>` : ''}
   </div>
 
   <table>

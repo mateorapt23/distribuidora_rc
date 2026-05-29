@@ -58,7 +58,7 @@ CREATE TABLE documentos (
 CREATE TABLE documentos_detalle (
     id              SERIAL PRIMARY KEY,
     documento_id    INTEGER        NOT NULL REFERENCES documentos(id) ON DELETE CASCADE,
-    producto_id     INTEGER        NOT NULL REFERENCES productos(id),
+    producto_id     INTEGER        REFERENCES productos(id),
     descripcion     VARCHAR(255)   NOT NULL,
     cantidad        NUMERIC(12,2)  NOT NULL,
     precio          NUMERIC(12,2)  NOT NULL,
@@ -101,9 +101,9 @@ CREATE TABLE facturas_efacilito (
     id              SERIAL PRIMARY KEY,
     nro_factura     VARCHAR(50)    NOT NULL UNIQUE,
     fecha           DATE           NOT NULL,
-    cedula_ruc      VARCHAR(20),
+    cedula_ruc      VARCHAR(50),
     cliente         VARCHAR(200),
-    estado          VARCHAR(30)    NOT NULL DEFAULT 'AUTORIZADO',
+    estado          VARCHAR(50)    NOT NULL DEFAULT 'AUTORIZADO',
     total           NUMERIC(12,2)  NOT NULL DEFAULT 0,
     archivo_origen  VARCHAR(255),
     usuario_id      INTEGER        REFERENCES usuarios(id),
@@ -126,7 +126,7 @@ CREATE TABLE facturas_efacilito_detalle (
 CREATE TABLE movimiento_stock (
     id              SERIAL PRIMARY KEY,
     producto_id     INTEGER        NOT NULL REFERENCES productos(id),
-    tipo            VARCHAR(20)    NOT NULL CHECK (tipo IN (
+    tipo            VARCHAR(50)    NOT NULL CHECK (tipo IN (
                         'entrada_compra',
                         'salida_recibo',
                         'salida_factura_efacilito',

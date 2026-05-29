@@ -31,8 +31,14 @@ const IcoGuardados = () => (
 export default function Documentos() {
   const [seccion, setSeccion] = useState('tabla');
   const [refrescar, setRefrescar] = useState(0);
+  const [datosEdicion, setDatosEdicion] = useState(null);
 
   const onGuardado = () => { setRefrescar(r => r + 1); setSeccion('guardados'); };
+
+  const onVerEnTabla = (datos) => {
+    setDatosEdicion(datos);
+    setSeccion('tabla');
+  };
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh' }}>
@@ -74,10 +80,12 @@ export default function Documentos() {
         ))}
       </div>
 
-      {seccion === 'tabla'
-        ? <Tabla onGuardado={onGuardado} />
-        : <Guardados key={refrescar} />
-      }
+      <div style={{ display: seccion === 'tabla' ? 'block' : 'none' }}>
+        <Tabla onGuardado={onGuardado} datosEdicion={datosEdicion} onDatosUsados={() => setDatosEdicion(null)} />
+      </div>
+      <div style={{ display: seccion === 'guardados' ? 'block' : 'none' }}>
+        <Guardados key={refrescar} onVerEnTabla={onVerEnTabla} />
+      </div>
     </div>
   );
 }

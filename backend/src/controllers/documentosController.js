@@ -140,7 +140,34 @@ const actualizar = async (req, res) => {
       'SELECT * FROM documentos WHERE id = $1 FOR UPDATE', [req.params.id]
     );
     if (docRows.length === 0) throw new Error('Documento no encontrado');
-    if (docRows[0].tipo !== 'proforma') throw new Error('Solo se pueden editar proformas');
+
+    const doc = docRows[0];
+    const esRecibo = doc.tipo === 'recibo';
+
+    // Si es recibo, revertir el stock del detalle anterior antes de reemplazarlo
+    if (esRecibo) {
+      const { rows: detalleAnterior } = await client.query(
+        'SELECT * FROM documentos_detalle WHERE documento_id = $1', [req.params.id]
+      );
+      for (const item of detalleAnterior) {
+        if (item.producto_id) {
+          const { rows: prod } = await client.query(
+            'SELECT stock FROM productos WHERE id = $1 FOR UPDATE', [item.producto_id]
+          );
+          const stockAnterior = parseFloat(prod[0].stock);
+          const stockRevertido = stockAnterior + parseFloat(item.cantidad);
+
+          await client.query(
+            'UPDATE productos SET stock = $1 WHERE id = $2', [stockRevertido, item.producto_id]
+          );
+          await client.query(
+            `INSERT INTO movimiento_stock (producto_id, tipo, cantidad, stock_anterior, stock_nuevo, referencia_id, referencia_tipo, usuario_id)
+             VALUES ($1,'ajuste_manual',$2,$3,$4,$5,'edicion_recibo',$6)`,
+            [item.producto_id, parseFloat(item.cantidad), stockAnterior, stockRevertido, req.params.id, req.usuario.id]
+          );
+        }
+      }
+    }
 
     let subtotal = 0, total_iva = 0;
     for (const item of detalle) {
@@ -151,7 +178,7 @@ const actualizar = async (req, res) => {
     const total = subtotal + total_iva;
 
     await client.query(
-      `UPDATE documentos SET cliente=$1, fecha=$2, notas=$3, subtotal=$4, total_iva=$5, total=$6 
+      `UPDATE documentos SET cliente=$1, fecha=$2, notas=$3, subtotal=$4, total_iva=$5, total=$6
        WHERE id=$7`,
       [cliente, fecha, notas, subtotal, total_iva, total, req.params.id]
     );
@@ -160,6 +187,7 @@ const actualizar = async (req, res) => {
       'DELETE FROM documentos_detalle WHERE documento_id = $1', [req.params.id]
     );
 
+    // Insertar nuevo detalle y, si es recibo, aplicar el nuevo descuento de stock
     for (const item of detalle) {
       const sub = parseFloat(item.cantidad) * parseFloat(item.precio);
       await client.query(
@@ -167,10 +195,27 @@ const actualizar = async (req, res) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [req.params.id, item.producto_id, item.descripcion, item.cantidad, item.precio, item.iva || 0, sub]
       );
+
+      if (esRecibo && item.producto_id) {
+        const { rows: prod } = await client.query(
+          'SELECT stock FROM productos WHERE id = $1 FOR UPDATE', [item.producto_id]
+        );
+        const stockAnterior = parseFloat(prod[0].stock);
+        const stockNuevo = stockAnterior - parseFloat(item.cantidad);
+
+        await client.query(
+          'UPDATE productos SET stock = $1 WHERE id = $2', [stockNuevo, item.producto_id]
+        );
+        await client.query(
+          `INSERT INTO movimiento_stock (producto_id, tipo, cantidad, stock_anterior, stock_nuevo, referencia_id, referencia_tipo, usuario_id)
+           VALUES ($1,'salida_recibo',$2,$3,$4,$5,'recibo',$6)`,
+          [item.producto_id, -parseFloat(item.cantidad), stockAnterior, stockNuevo, req.params.id, req.usuario.id]
+        );
+      }
     }
 
     await client.query('COMMIT');
-    res.json({ mensaje: 'Proforma actualizada' });
+    res.json({ mensaje: esRecibo ? 'Recibo actualizado' : 'Proforma actualizada' });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(400).json({ error: err.message });
@@ -178,6 +223,7 @@ const actualizar = async (req, res) => {
     client.release();
   }
 };
+
 
 const convertirARecibo = async (req, res) => {
   const client = await pool.connect();
