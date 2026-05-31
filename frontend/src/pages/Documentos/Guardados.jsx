@@ -41,6 +41,10 @@ export default function Guardados({ onVerEnTabla }) {
   const [editNotas, setEditNotas]             = useState('');
   const [editFilas, setEditFilas]             = useState([]);
   const [guardando, setGuardando]             = useState(false);
+  const [modalPDF, setModalPDF]               = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl]           = useState(null);
+  const [pdfNombre, setPdfNombre]             = useState('');
+  const [pdfGenerando, setPdfGenerando]       = useState(false);
   const LIMIT = 20;
 
   const cargar = useCallback(async () => {
@@ -240,6 +244,50 @@ export default function Guardados({ onVerEnTabla }) {
     });
   };
 
+  const abrirVistaPreviaPDF = async (doc, detalleImp) => {
+    const filas        = detalleImp || detalle;
+    const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0), 0);
+    const totalIva     = filas.reduce((s, f) => {
+      const base = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
+      return s + base * ((parseFloat(f.iva) || 0) / 100);
+    }, 0);
+    const html   = generarHTML({
+      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
+      notas: doc.notas || '', filas,
+      subtotalBase, totalIva, total: subtotalBase + totalIva,
+    });
+    const nombre = `${doc.tipo.toUpperCase()}-${doc.numero}-${doc.fecha?.slice(0, 10)}.pdf`;
+    setPdfNombre(nombre);
+    setModalPDF(true);
+    setPdfGenerando(true);
+    setPdfBlobUrl(null);
+    try {
+      const res = await api.post('/documentos/pdf', { html, nombre }, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      setPdfBlobUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Error al generar el PDF');
+      setModalPDF(false);
+    } finally {
+      setPdfGenerando(false);
+    }
+  };
+
+  const cerrarModalPDF = () => {
+    setModalPDF(false);
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
+  };
+
+  const descargarBlobPDF = () => {
+    if (!pdfBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = pdfBlobUrl;
+    a.download = pdfNombre;
+    a.click();
+  };
+
   const actualizarFilaEditar = (id, campo, valor) => {
     setEditFilas(prev => prev.map(f => {
       if (f._id !== id) return f;
@@ -390,11 +438,8 @@ export default function Guardados({ onVerEnTabla }) {
             <BtnModal color="#374151" outline onClick={() => imprimirTermica(docSeleccionado, detalle)} icon={<IcoThermal />}>
               Térmica
             </BtnModal>
-            <BtnModal color={C.azul} outline onClick={() => imprimir(docSeleccionado, detalle)} icon={<IcoPDF />}>
-              Imprimir
-            </BtnModal>
-            <BtnModal color={C.verde} outline onClick={() => descargarPDF(docSeleccionado, detalle)} icon={<IcoPDF />}>
-              Descargar PDF
+            <BtnModal color={C.azul} outline onClick={() => { setModalVer(false); abrirVistaPreviaPDF(docSeleccionado, detalle); }} icon={<IcoPDF />}>
+              Vista Previa PDF
             </BtnModal>
             <BtnModal color={C.textDim} outline onClick={() => setModalVer(false)}>
               Cerrar
@@ -507,6 +552,52 @@ export default function Guardados({ onVerEnTabla }) {
             </BtnModal>
           </div>
         </Modal>
+      )}
+
+      {/* ── Modal Vista Previa PDF ── */}
+      {modalPDF && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60,
+          display: 'flex', flexDirection: 'column', background: '#525659' }}>
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {pdfGenerando && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex',
+                flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                background: '#525659', gap: 16, zIndex: 1 }}>
+                <div style={{ width: 44, height: 44, border: '3px solid #5f6368',
+                  borderTopColor: '#8ab4f8', borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite' }} />
+                <span style={{ color: '#bdc1c6', fontSize: 14, fontWeight: 500 }}>Generando PDF…</span>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+              </div>
+            )}
+            {pdfBlobUrl && (
+              <iframe src={pdfBlobUrl} style={{ width: '100%', height: '100%', border: 'none' }}
+                title={pdfNombre} />
+            )}
+          </div>
+          <div style={{ background: '#3c4043', borderTop: '1px solid #5f6368',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 12, padding: '10px 24px', flexShrink: 0 }}>
+            <button onClick={descargarBlobPDF} disabled={pdfGenerando}
+              style={{ background: '#1a73e8', border: 'none', color: '#fff',
+                borderRadius: 6, padding: '10px 24px', fontWeight: 700,
+                fontSize: 13, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
+                opacity: pdfGenerando ? 0.5 : 1, letterSpacing: 0.5, transition: 'background .15s' }}
+              onMouseEnter={e => { if (!pdfGenerando) e.currentTarget.style.background = '#1557b0'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#1a73e8'; }}>
+              <IcoPDF /> DESCARGAR PDF
+            </button>
+            <button onClick={cerrarModalPDF}
+              style={{ background: '#5f6368', border: 'none', color: '#e8eaed',
+                borderRadius: 6, padding: '10px 28px', fontWeight: 700,
+                fontSize: 13, cursor: 'pointer', letterSpacing: 0.5, transition: 'background .15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#80868b'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#5f6368'; }}>
+              S A L I R
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

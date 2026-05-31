@@ -11,6 +11,7 @@ const { listar: listarComp, obtener: obtenerComp, crear: crearComp, eliminar: el
 const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
 const { resumen, reporteVentas, productosMasVendidos, movimientos } = require('../controllers/dashboardController');
 const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf } = require('../controllers/facturasEfController');
+const { generarPDF } = require('../controllers/pdfController');
 
 // ── AUTH ──────────────────────────────────────────────────
 const authRouter = express.Router();
@@ -34,6 +35,7 @@ const documentosRouter = express.Router();
 documentosRouter.use(verificarToken);
 documentosRouter.get('/',               listarDoc);
 documentosRouter.get('/:id',            obtenerDoc);
+documentosRouter.post('/pdf',           generarPDF);
 documentosRouter.post('/',              crearDoc);
 documentosRouter.put('/:id',            actualizarDoc);
 documentosRouter.post('/:id/convertir', convertirARecibo);

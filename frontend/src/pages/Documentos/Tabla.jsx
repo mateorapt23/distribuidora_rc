@@ -243,90 +243,32 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
-  const generarPDFBlob = async () => {
+  const obtenerDatosHTML = () => {
     const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
     const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
-    const htmlContent = generarHTML({
+    const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}.pdf`;
+    const html      = generarHTML({
       tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
       filas: filasValidas, subtotalBase, totalIva, total,
     });
-
-    // Cargar librerías si no están
-    if (!window.html2canvas) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-    if (!window.jspdf) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-
-    // Renderizar HTML en iframe oculto para captura fiel
-    return new Promise((resolve, reject) => {
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:794px;height:1123px;border:none;visibility:hidden;';
-      document.body.appendChild(iframe);
-
-      iframe.onload = async () => {
-        try {
-          await new Promise(r => setTimeout(r, 300)); // esperar que render termine
-
-          const canvas = await window.html2canvas(iframe.contentDocument.body, {
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-            width: 794,
-            windowWidth: 794,
-          });
-
-          document.body.removeChild(iframe);
-
-          const { jsPDF } = window.jspdf;
-          const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-          const imgData  = canvas.toDataURL('image/jpeg', 0.98);
-          const pageW    = pdf.internal.pageSize.getWidth();
-          const pageH    = pdf.internal.pageSize.getHeight();
-          pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
-
-          resolve(pdf.output('blob'));
-        } catch (err) {
-          document.body.removeChild(iframe);
-          reject(err);
-        }
-      };
-
-      iframe.contentDocument.open();
-      iframe.contentDocument.write(htmlContent);
-      iframe.contentDocument.close();
-    });
+    return { html, nombre };
   };
 
   const abrirPDF = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para previsualizar'); return; }
-    const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
-    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
-    const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}.pdf`;
+    const { html, nombre } = obtenerDatosHTML();
     setPdfNombre(nombre);
     setModalPDF(true);
     setPdfGenerando(true);
     setPdfBlobUrl(null);
     try {
-      const blob = await generarPDFBlob();
-      const url  = URL.createObjectURL(blob);
+      const res = await api.post('/documentos/pdf', { html, nombre }, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       setPdfBlobUrl(url);
     } catch (err) {
       console.error(err);
-      alert('Error al generar el PDF: ' + err.message);
+      alert('Error al generar el PDF');
       setModalPDF(false);
     } finally {
       setPdfGenerando(false);
@@ -338,83 +280,28 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
   };
 
-  const descargarBlobPDF = async () => {
-    try {
-      let url = pdfBlobUrl;
-      let revocar = false;
-      if (!url) {
-        setPdfGenerando(true);
-        const blob = await generarPDFBlob();
-        url = URL.createObjectURL(blob);
-        revocar = true;
-      }
-      const a = document.createElement('a');
-      a.href = url; a.download = pdfNombre; a.click();
-      if (revocar) setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err) { alert('Error al descargar: ' + err.message); }
-    finally { setPdfGenerando(false); }
+  const descargarBlobPDF = () => {
+    if (!pdfBlobUrl) return;
+    const a = document.createElement('a');
+    a.href = pdfBlobUrl;
+    a.download = pdfNombre;
+    a.click();
   };
 
   const imprimirDesdeModal = () => {
-    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
-    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
-    const htmlContent = generarHTML({
-      tipo: tipoDoc, numero: numeroDoc,
-      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
-    });
+    if (filasValidas.length === 0) { alert('No hay productos para imprimir'); return; }
+    const { html } = obtenerDatosHTML();
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
     document.body.appendChild(iframe);
     iframe.contentDocument.open();
-    iframe.contentDocument.write(htmlContent);
+    iframe.contentDocument.write(html);
     iframe.contentDocument.close();
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
-  const descargarPDF = () => {
-    if (filasValidas.length === 0) { alert('No hay productos para descargar'); return; }
-
-    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
-    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
-
-    const htmlContent = generarHTML({
-      tipo: tipoDoc, numero: numeroDoc,
-      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
-    });
-
-    const htmlPrint = htmlContent
-      .replace(
-        '@media print { body { margin:0; } .page { padding:12px; } }',
-        `@media print {
-          html, body { margin:0 !important; padding:0 !important; }
-          .page {
-            width: 210mm !important;
-            min-height: 297mm !important;
-            padding: 14mm 14mm !important;
-            margin: 0 !important;
-            box-sizing: border-box !important;
-          }
-        }`
-      )
-      .replace('@page { margin:0; size:A4; }', '@page { margin: 0; size: A4 portrait; }');
-
-    const winPrint = window.open('', '_blank', 'width=900,height=700');
-    if (!winPrint) { alert('Por favor permite ventanas emergentes para descargar el PDF.'); return; }
-    winPrint.document.open();
-    winPrint.document.write(htmlPrint);
-    winPrint.document.close();
-    winPrint.onload = () => {
-      setTimeout(() => {
-        winPrint.focus();
-        winPrint.print();
-        winPrint.onafterprint = () => winPrint.close();
-      }, 400);
-    };
-  };
   const tomarCaptura = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para capturar'); return; }
 
