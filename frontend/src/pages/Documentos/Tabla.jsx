@@ -34,6 +34,9 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [guardando, setGuardando]       = useState(false);
   const [modalGuardar, setModalGuardar] = useState(false);
   const [modalPDF, setModalPDF]         = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl]     = useState(null);
+  const [pdfNombre, setPdfNombre]       = useState('');
+  const [pdfGenerando, setPdfGenerando] = useState(false);
   const [idEdicion, setIdEdicion]       = useState(null);
   const [tipoEdicion, setTipoEdicion]   = useState(null);
   const [tipoNuevo, setTipoNuevo]       = useState('recibo');
@@ -240,9 +243,116 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
-  const abrirPDF = () => {
+  const generarPDFBlob = async () => {
+    const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const htmlContent = generarHTML({
+      tipo: tipoDoc, numero: numeroDoc,
+      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
+      filas: filasValidas, subtotalBase, totalIva, total,
+    });
+
+    // Cargar librerías si no están
+    if (!window.html2canvas) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    if (!window.jspdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    // Renderizar HTML en iframe oculto para captura fiel
+    return new Promise((resolve, reject) => {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:794px;height:1123px;border:none;visibility:hidden;';
+      document.body.appendChild(iframe);
+
+      iframe.onload = async () => {
+        try {
+          await new Promise(r => setTimeout(r, 300)); // esperar que render termine
+
+          const canvas = await window.html2canvas(iframe.contentDocument.body, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            width: 794,
+            windowWidth: 794,
+          });
+
+          document.body.removeChild(iframe);
+
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+          const imgData  = canvas.toDataURL('image/jpeg', 0.98);
+          const pageW    = pdf.internal.pageSize.getWidth();
+          const pageH    = pdf.internal.pageSize.getHeight();
+          pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
+
+          resolve(pdf.output('blob'));
+        } catch (err) {
+          document.body.removeChild(iframe);
+          reject(err);
+        }
+      };
+
+      iframe.contentDocument.open();
+      iframe.contentDocument.write(htmlContent);
+      iframe.contentDocument.close();
+    });
+  };
+
+  const abrirPDF = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para previsualizar'); return; }
+    const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}.pdf`;
+    setPdfNombre(nombre);
     setModalPDF(true);
+    setPdfGenerando(true);
+    setPdfBlobUrl(null);
+    try {
+      const blob = await generarPDFBlob();
+      const url  = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Error al generar el PDF: ' + err.message);
+      setModalPDF(false);
+    } finally {
+      setPdfGenerando(false);
+    }
+  };
+
+  const cerrarModalPDF = () => {
+    setModalPDF(false);
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
+  };
+
+  const descargarBlobPDF = async () => {
+    try {
+      let url = pdfBlobUrl;
+      let revocar = false;
+      if (!url) {
+        setPdfGenerando(true);
+        const blob = await generarPDFBlob();
+        url = URL.createObjectURL(blob);
+        revocar = true;
+      }
+      const a = document.createElement('a');
+      a.href = url; a.download = pdfNombre; a.click();
+      if (revocar) setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { alert('Error al descargar: ' + err.message); }
+    finally { setPdfGenerando(false); }
   };
 
   const imprimirDesdeModal = () => {
@@ -264,12 +374,11 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
-  const descargarPDF = async () => {
+  const descargarPDF = () => {
     if (filasValidas.length === 0) { alert('No hay productos para descargar'); return; }
 
     const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
     const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
-    const nombreArchivo = `${(idEdicion ? tipoEdicion : tipoNuevo)}-${numeroDoc}-${fecha}.pdf`;
 
     const htmlContent = generarHTML({
       tipo: tipoDoc, numero: numeroDoc,
@@ -277,38 +386,35 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       filas: filasValidas, subtotalBase, totalIva, total,
     });
 
-    if (!window.html2pdf) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
+    const htmlPrint = htmlContent
+      .replace(
+        '@media print { body { margin:0; } .page { padding:12px; } }',
+        `@media print {
+          html, body { margin:0 !important; padding:0 !important; }
+          .page {
+            width: 210mm !important;
+            min-height: 297mm !important;
+            padding: 14mm 14mm !important;
+            margin: 0 !important;
+            box-sizing: border-box !important;
+          }
+        }`
+      )
+      .replace('@page { margin:0; size:A4; }', '@page { margin: 0; size: A4 portrait; }');
 
-    const parser = new DOMParser();
-    const docParsed = parser.parseFromString(htmlContent, 'text/html');
-    const pageEl = docParsed.querySelector('.page');
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;overflow:visible;';
-    const styleEl = document.createElement('style');
-    styleEl.textContent = Array.from(docParsed.querySelectorAll('style')).map(s => s.textContent).join('\n') +
-      ' .page { width: 794px !important; padding: 20px !important; box-sizing: border-box !important; }';
-    wrapper.appendChild(styleEl);
-    wrapper.appendChild(pageEl);
-    document.body.appendChild(wrapper);
-    await new Promise(r => setTimeout(r, 150));
-    await window.html2pdf().set({
-      margin: 0,
-      filename: nombreArchivo,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, width: 794, windowWidth: 794 },
-      jsPDF: { unit: 'px', format: 'a4', orientation: 'portrait', hotfixes: ['px_scaling'] },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    }).from(pageEl).save();
-    document.body.removeChild(wrapper);
+    const winPrint = window.open('', '_blank', 'width=900,height=700');
+    if (!winPrint) { alert('Por favor permite ventanas emergentes para descargar el PDF.'); return; }
+    winPrint.document.open();
+    winPrint.document.write(htmlPrint);
+    winPrint.document.close();
+    winPrint.onload = () => {
+      setTimeout(() => {
+        winPrint.focus();
+        winPrint.print();
+        winPrint.onafterprint = () => winPrint.close();
+      }, 400);
+    };
   };
-
   const tomarCaptura = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para capturar'); return; }
 
@@ -908,62 +1014,66 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         </div>
       )}
 
-      {/* Modal Vista Previa PDF */}
+      {/* Modal Vista Previa PDF — visor nativo del navegador */}
       {modalPDF && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: '90vw', maxWidth: 820,
-            maxHeight: '92vh', display: 'flex', flexDirection: 'column',
-            boxShadow: '0 32px 80px rgba(0,0,0,0.28)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60,
+          display: 'flex', flexDirection: 'column', background: '#525659' }}>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '16px 24px', borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 36, height: 36, background: '#eff6ff', borderRadius: 9,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.azul }}>
-                  <IcoPDF />
-                </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: C.textPrimary }}>Vista Previa del Documento</div>
-                  <div style={{ fontSize: 12, color: C.textDim }}>
-                    {(idEdicion ? tipoEdicion : tipoNuevo) === 'recibo' ? 'Recibo' : 'Proforma'} {idEdicion ? numeroEdicion : numeroPreview} — {cliente || 'Consumidor Final'} — {fecha}
-                  </div>
-                </div>
+          {/* Iframe visor PDF nativo — ocupa todo menos barra inferior */}
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+            {pdfGenerando && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex',
+                flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                background: '#525659', gap: 16, zIndex: 1 }}>
+                <div style={{ width: 44, height: 44, border: '3px solid #5f6368',
+                  borderTopColor: '#8ab4f8', borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite' }} />
+                <span style={{ color: '#bdc1c6', fontSize: 14, fontWeight: 500 }}>Generando PDF…</span>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button onClick={() => { setModalPDF(false); descargarPDF(); }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff',
-                    border: `1px solid ${C.verde}`, color: C.verde, borderRadius: 8,
-                    padding: '8px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                  <IcoDownload /> Descargar PDF
-                </button>
-                <button onClick={imprimirDesdeModal}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.azul,
-                    border: 'none', color: '#fff', borderRadius: 8,
-                    padding: '8px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                  <IcoPDF /> Imprimir
-                </button>
-                <button onClick={() => setModalPDF(false)}
-                  style={{ background: 'none', border: `1px solid ${C.border}`, color: C.textDim,
-                    borderRadius: 8, padding: '7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                  <IcoX />
-                </button>
-              </div>
-            </div>
-
-            <div style={{ flex: 1, overflow: 'auto', padding: 20, background: '#f0f0f0' }}>
+            )}
+            {pdfBlobUrl && (
               <iframe
-                srcDoc={generarHTML({
-                  tipo: (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase(),
-                  numero: idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR'),
-                  cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-                  filas: filasValidas, subtotalBase, totalIva, total,
-                })}
-                style={{ width: '100%', height: '600px', border: 'none', borderRadius: 8,
-                  boxShadow: '0 4px 24px rgba(0,0,0,0.15)', background: '#fff' }}
-                title="Vista previa documento"
+                src={pdfBlobUrl}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                title={pdfNombre}
               />
-            </div>
+            )}
+          </div>
+
+          {/* Barra inferior estilo sistema de facturación */}
+          <div style={{
+            background: '#3c4043', borderTop: '1px solid #5f6368',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            gap: 12, padding: '10px 24px', flexShrink: 0,
+          }}>
+            <button
+              onClick={descargarBlobPDF}
+              disabled={pdfGenerando}
+              style={{
+                background: '#1a73e8', border: 'none', color: '#fff',
+                borderRadius: 6, padding: '10px 24px', fontWeight: 700,
+                fontSize: 13, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
+                opacity: pdfGenerando ? 0.5 : 1, letterSpacing: 0.5,
+                transition: 'background .15s',
+              }}
+              onMouseEnter={e => { if (!pdfGenerando) e.currentTarget.style.background = '#1557b0'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#1a73e8'; }}>
+              <IcoDownload /> DESCARGAR PDF
+            </button>
+            <button
+              onClick={cerrarModalPDF}
+              style={{
+                background: '#5f6368', border: 'none', color: '#e8eaed',
+                borderRadius: 6, padding: '10px 28px', fontWeight: 700,
+                fontSize: 13, cursor: 'pointer', letterSpacing: 0.5,
+                transition: 'background .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#80868b'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#5f6368'; }}>
+              S A L I R
+            </button>
           </div>
         </div>
       )}

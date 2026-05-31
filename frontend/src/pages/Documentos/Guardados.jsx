@@ -151,54 +151,59 @@ export default function Guardados({ onVerEnTabla }) {
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
-  const descargarPDF = async (doc, detalleImp) => {
-    const filas = detalleImp || detalle;
-    const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
-    const totalIva     = filas.reduce((s, f) => {
-      const base = parseFloat(f.cantidad) * parseFloat(f.precio);
-      return s + base * ((parseFloat(f.iva) || 0) / 100);
+  const descargarPDF = (doc, detalleImp) => {
+    const filas        = detalleImp || detalle;
+    const subtotalBase = filas.reduce((s,f) => s + (parseFloat(f.cantidad)||0)*(parseFloat(f.precio)||0), 0);
+    const totalIva     = filas.reduce((s,f) => {
+      const base = (parseFloat(f.cantidad)||0)*(parseFloat(f.precio)||0);
+      return s + base * ((parseFloat(f.iva)||0) / 100);
     }, 0);
-    const nombreArchivo = `${doc.tipo}-${doc.numero}-${doc.fecha?.slice(0, 10)}.pdf`;
-    const html = generarHTML({
+
+    // Inyectamos el CSS de impresión directamente en el HTML existente para que
+    // el navegador genere el PDF con calidad perfecta, igual a la vista previa.
+    const htmlBase = generarHTML({
       tipo: doc.tipo.toUpperCase(), numero: doc.numero,
-      cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
+      cliente: doc.cliente, fecha: doc.fecha?.slice(0,10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
     });
 
-    if (!window.html2pdf) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
+    // Reemplazamos el @media print para forzar escala exacta A4 sin márgenes
+    const htmlPrint = htmlBase.replace(
+      '@media print { body { margin:0; } .page { padding:12px; } }',
+      `@media print {
+        html, body { margin:0 !important; padding:0 !important; }
+        .page {
+          width: 210mm !important;
+          min-height: 297mm !important;
+          padding: 14mm 14mm !important;
+          margin: 0 !important;
+          box-sizing: border-box !important;
+        }
+      }`
+    ).replace(
+      '@page { margin:0; size:A4; }',
+      '@page { margin: 0; size: A4 portrait; }'
+    );
 
-    const parser = new DOMParser();
-    const docParsed = parser.parseFromString(html, 'text/html');
-    const pageEl = docParsed.querySelector('.page');
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;overflow:visible;';
-    const styleEl = document.createElement('style');
-    styleEl.textContent = Array.from(docParsed.querySelectorAll('style')).map(s => s.textContent).join('\n') +
-      ' .page { width: 794px !important; padding: 20px !important; box-sizing: border-box !important; }';
-    wrapper.appendChild(styleEl);
-    wrapper.appendChild(pageEl);
-    document.body.appendChild(wrapper);
-    await new Promise(r => setTimeout(r, 150));
-    await window.html2pdf().set({
-      margin: 0,
-      filename: nombreArchivo,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, logging: false, width: 794, windowWidth: 794 },
-      jsPDF: { unit: 'px', format: 'a4', orientation: 'portrait', hotfixes: ['px_scaling'] },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-    }).from(pageEl).save();
-    document.body.removeChild(wrapper);
+    const winPrint = window.open('', '_blank', 'width=900,height=700');
+    if (!winPrint) { alert('Por favor permite ventanas emergentes para descargar el PDF.'); return; }
+    winPrint.document.open();
+    winPrint.document.write(htmlPrint);
+    winPrint.document.close();
+
+    // Esperamos a que carguen fuentes y estilos, luego imprimimos
+    winPrint.onload = () => {
+      setTimeout(() => {
+        winPrint.focus();
+        winPrint.print();
+        // Cerramos la ventana después de que el usuario interactúe con el diálogo
+        winPrint.onafterprint = () => winPrint.close();
+      }, 400);
+    };
   };
 
-  const imprimirTermica = (doc, detalleImp) => {
+    const imprimirTermica = (doc, detalleImp) => {
     const filas = detalleImp || detalle;
     const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
     const totalIva     = filas.reduce((s, f) => {
