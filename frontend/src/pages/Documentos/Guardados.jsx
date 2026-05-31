@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
-import { generarHTMLTermica } from './Tabla';
+import { generarHTMLTermica, generarHTMLTabla } from './Tabla';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -45,6 +45,8 @@ export default function Guardados({ onVerEnTabla }) {
   const [pdfBlobUrl, setPdfBlobUrl]           = useState(null);
   const [pdfNombre, setPdfNombre]             = useState('');
   const [pdfGenerando, setPdfGenerando]       = useState(false);
+  const [pdfOpcion, setPdfOpcion]             = useState(1);
+  const [pdfDocActual, setPdfDocActual]       = useState(null);
   const LIMIT = 20;
 
   const cargar = useCallback(async () => {
@@ -244,32 +246,65 @@ export default function Guardados({ onVerEnTabla }) {
     });
   };
 
-  const abrirVistaPreviaPDF = async (doc, detalleImp) => {
-    const filas        = detalleImp || detalle;
+  const construirHTMLParaDoc = (doc, filas, opcion = 1) => {
     const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0), 0);
     const totalIva     = filas.reduce((s, f) => {
       const base = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
       return s + base * ((parseFloat(f.iva) || 0) / 100);
     }, 0);
-    const html   = generarHTML({
+    const params = {
       tipo: doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
-    });
+    };
+    return opcion === 1 ? generarHTML(params) : generarHTMLTabla(params);
+  };
+
+  const abrirVistaPreviaPDF = async (doc, detalleImp, opcionInicial = 1) => {
+    const filas  = detalleImp || detalle;
     const nombre = `${doc.tipo.toUpperCase()}-${doc.numero}-${doc.fecha?.slice(0, 10)}.pdf`;
+    const html   = construirHTMLParaDoc(doc, filas, opcionInicial);
     setPdfNombre(nombre);
+    setPdfOpcion(opcionInicial);
     setModalPDF(true);
     setPdfGenerando(true);
     setPdfBlobUrl(null);
+    // Guardamos doc y filas actuales para poder cambiar de opción sin re-fetchear
+    setPdfDocActual({ doc, filas });
     try {
-      const res = await api.post('/documentos/pdf', { html, nombre }, { responseType: 'blob' });
+      const marginsPorOpcion = opcionInicial === 1
+        ? { top: '10mm', right: '0mm', bottom: '0mm', left: '0mm' }
+        : { top: '10mm', right: '5mm', bottom: '0mm', left: '5mm' };
+      const res = await api.post('/documentos/pdf', { html, nombre, margins: marginsPorOpcion }, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       setPdfBlobUrl(url);
     } catch (err) {
       console.error(err);
       alert('Error al generar el PDF');
       setModalPDF(false);
+    } finally {
+      setPdfGenerando(false);
+    }
+  };
+
+  const cambiarOpcionPDF = async (nuevaOpcion) => {
+    if (nuevaOpcion === pdfOpcion || pdfGenerando || !pdfDocActual) return;
+    const { doc, filas } = pdfDocActual;
+    const html = construirHTMLParaDoc(doc, filas, nuevaOpcion);
+    setPdfOpcion(nuevaOpcion);
+    setPdfGenerando(true);
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
+    try {
+      const marginsPorOpcion = nuevaOpcion === 1
+        ? { top: '10mm', right: '0mm', bottom: '0mm', left: '0mm' }
+        : { top: '10mm', right: '5mm', bottom: '0mm', left: '5mm' };
+      const res = await api.post('/documentos/pdf', { html, nombre: pdfNombre, margins: marginsPorOpcion }, { responseType: 'blob' });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      setPdfBlobUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Error al generar el PDF');
     } finally {
       setPdfGenerando(false);
     }
@@ -577,7 +612,35 @@ export default function Guardados({ onVerEnTabla }) {
           </div>
           <div style={{ background: '#3c4043', borderTop: '1px solid #5f6368',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 12, padding: '10px 24px', flexShrink: 0 }}>
+            gap: 16, padding: '10px 24px', flexShrink: 0, flexWrap: 'wrap' }}>
+
+            {/* Selector de formato */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6,
+              background: '#2d2f31', borderRadius: 8, padding: '4px 6px',
+              border: '1px solid #5f6368' }}>
+              <span style={{ color: '#9aa0a6', fontSize: 11, fontWeight: 600,
+                marginRight: 4, whiteSpace: 'nowrap' }}>FORMATO:</span>
+              {[
+                { id: 1, label: 'Formato PDF' },
+                { id: 2, label: 'Tabla' },
+              ].map(op => (
+                <button key={op.id}
+                  onClick={() => cambiarOpcionPDF(op.id)}
+                  disabled={pdfGenerando}
+                  style={{
+                    background: pdfOpcion === op.id ? '#1a73e8' : 'transparent',
+                    border: pdfOpcion === op.id ? 'none' : '1px solid #5f6368',
+                    color: pdfOpcion === op.id ? '#fff' : '#bdc1c6',
+                    borderRadius: 6, padding: '6px 14px', fontWeight: 600,
+                    fontSize: 12, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
+                    transition: 'all .15s', whiteSpace: 'nowrap',
+                    opacity: pdfGenerando ? 0.6 : 1,
+                  }}>
+                  {op.label}
+                </button>
+              ))}
+            </div>
+
             <button onClick={descargarBlobPDF} disabled={pdfGenerando}
               style={{ background: '#1a73e8', border: 'none', color: '#fff',
                 borderRadius: 6, padding: '10px 24px', fontWeight: 700,
@@ -787,7 +850,7 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family: Arial, Helvetica, sans-serif; font-size:11px; color:#111; background:#fff; }
-    .page { width: 750px; margin: 0 auto; padding: 20px 24px; }
+    .page { width: 750px; margin: 0 auto; padding: 36px 24px 20px; }
 
     /* ── Cabecera ── */
     .header { display:flex; justify-content:space-between; align-items:stretch; border:1.5px solid #333; }
@@ -859,7 +922,6 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
     .pie { text-align:center; font-size:9px; color:#888; margin-top:10px; }
 
     @media print { body { margin:0; } .page { padding:12px; } }
-    @page { margin:0; size:A4; }
     html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   </style>
 </head>

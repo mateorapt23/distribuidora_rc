@@ -37,6 +37,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [pdfBlobUrl, setPdfBlobUrl]     = useState(null);
   const [pdfNombre, setPdfNombre]       = useState('');
   const [pdfGenerando, setPdfGenerando] = useState(false);
+  const [pdfOpcion, setPdfOpcion]       = useState(1);
   const [idEdicion, setIdEdicion]       = useState(null);
   const [tipoEdicion, setTipoEdicion]   = useState(null);
   const [tipoNuevo, setTipoNuevo]       = useState('recibo');
@@ -243,27 +244,37 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
-  const obtenerDatosHTML = () => {
+  const obtenerDatosHTML = (opcion = 1) => {
     const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
     const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
     const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}.pdf`;
-    const html      = generarHTML({
-      tipo: tipoDoc, numero: numeroDoc,
-      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
-    });
+    let html;
+    if (opcion === 1) {
+      html = generarHTML({
+        tipo: tipoDoc, numero: numeroDoc,
+        cliente: cliente || 'Consumidor Final', fecha, notas: notes,
+        filas: filasValidas, subtotalBase, totalIva, total,
+      });
+    } else {
+      html = generarHTMLTabla({
+        tipo: tipoDoc, numero: numeroDoc,
+        cliente: cliente || 'Consumidor Final', fecha, notas: notes,
+        filas: filasValidas, subtotalBase, totalIva, total,
+      });
+    }
     return { html, nombre };
   };
 
-  const abrirPDF = async () => {
-    if (filasValidas.length === 0) { alert('No hay productos para previsualizar'); return; }
-    const { html, nombre } = obtenerDatosHTML();
+  const generarPDFConOpcion = async (opcion) => {
+    const { html, nombre } = obtenerDatosHTML(opcion);
     setPdfNombre(nombre);
-    setModalPDF(true);
     setPdfGenerando(true);
-    setPdfBlobUrl(null);
+    if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
     try {
-      const res = await api.post('/documentos/pdf', { html, nombre }, { responseType: 'blob' });
+      const marginsPorOpcion = opcion === 1
+        ? { top: '10mm', right: '0mm', bottom: '0mm', left: '0mm' }
+        : { top: '10mm', right: '5mm', bottom: '0mm', left: '5mm' };
+      const res = await api.post('/documentos/pdf', { html, nombre, margins: marginsPorOpcion }, { responseType: 'blob' });
       const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       setPdfBlobUrl(url);
     } catch (err) {
@@ -273,6 +284,13 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     } finally {
       setPdfGenerando(false);
     }
+  };
+
+  const abrirPDF = async () => {
+    if (filasValidas.length === 0) { alert('No hay productos para previsualizar'); return; }
+    setPdfOpcion(1);
+    setModalPDF(true);
+    await generarPDFConOpcion(1);
   };
 
   const cerrarModalPDF = () => {
@@ -288,176 +306,300 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     a.click();
   };
 
+  const cambiarOpcionPDF = async (nuevaOpcion) => {
+    if (nuevaOpcion === pdfOpcion || pdfGenerando) return;
+    setPdfOpcion(nuevaOpcion);
+    await generarPDFConOpcion(nuevaOpcion);
+  };
+
   const imprimirDesdeModal = () => {
-    if (filasValidas.length === 0) { alert('No hay productos para imprimir'); return; }
-    const { html } = obtenerDatosHTML();
+    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const htmlContent = generarHTML({
+      tipo: tipoDoc, numero: numeroDoc,
+      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
+      filas: filasValidas, subtotalBase, totalIva, total,
+    });
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
     document.body.appendChild(iframe);
     iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
+    iframe.contentDocument.write(htmlContent);
     iframe.contentDocument.close();
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
     setTimeout(() => document.body.removeChild(iframe), 1000);
   };
 
+  const descargarPDF = async () => {
+    if (filasValidas.length === 0) { alert('No hay productos para descargar'); return; }
+
+    // Cargar jsPDF si no está disponible
+    if (!window.jspdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const nombreArchivo = `${(idEdicion ? tipoEdicion : tipoNuevo)}-${numeroDoc}-${fecha}.pdf`;
+
+    const PW = 210; // ancho A4
+    const M  = 14;  // margen lateral
+    const CW = PW - M * 2; // ancho contenido = 182mm
+
+    // ── Helpers ─────────────────────────────────────────────
+    const hex2rgb = (hex) => {
+      const r = parseInt(hex.slice(1,3),16);
+      const g = parseInt(hex.slice(3,5),16);
+      const b = parseInt(hex.slice(5,7),16);
+      return [r,g,b];
+    };
+    const fill  = (hex) => doc.setFillColor(...hex2rgb(hex));
+    const stroke= (hex) => doc.setDrawColor(...hex2rgb(hex));
+    const text  = (hex) => doc.setTextColor(...hex2rgb(hex));
+
+    let y = 14; // cursor vertical
+
+    // ── CABECERA ─────────────────────────────────────────────
+    const HDR_H = 28;
+    // Bloque amarillo (izquierda, 60% ancho)
+    const leftW = CW * 0.62;
+    fill('#F5C400'); stroke('#333333');
+    doc.setLineWidth(0.5);
+    doc.rect(M, y, leftW, HDR_H, 'FD');
+
+    // Nombre empresa
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(18);
+    text('#111111');
+    doc.text('DISTRIBUIDORA RC', M + 5, y + 10);
+
+    // Info empresa
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    text('#333333');
+    doc.text('DIRECCIÓN: Chimbacalle, Av Napo y Salcedo', M + 5, y + 17);
+    doc.text('TELÉFONO: 0998024883 – 0984666022', M + 5, y + 22);
+
+    // Bloque negro (derecha)
+    const rightX = M + leftW;
+    const rightW = CW - leftW;
+    fill('#0D111C'); stroke('#333333');
+    doc.rect(rightX, y, rightW, HDR_H, 'FD');
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(14);
+    text('#FFFFFF');
+    doc.text(tipoDoc, rightX + rightW / 2, y + 9, { align: 'center' });
+
+    doc.setFontSize(10);
+    text('#FDE68A');
+    doc.text(`N° ${numeroDoc}`, rightX + rightW / 2, y + 16, { align: 'center' });
+
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8);
+    text('#BFDBFE');
+    doc.text(fecha, rightX + rightW / 2, y + 22, { align: 'center' });
+
+    y += HDR_H;
+
+    // ── FILA CLIENTE ─────────────────────────────────────────
+    const CLI_H = 9;
+    fill('#FEF3C7'); stroke('#333333');
+    doc.setLineWidth(0.4);
+    doc.rect(M, y, CW, CLI_H, 'FD');
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9);
+    text('#6B7280');
+    doc.text('CLIENTE:', M + 4, y + 6);
+    doc.setFont('helvetica','bold');
+    text('#111111');
+    doc.text(cliente || 'Consumidor Final', M + 26, y + 6);
+
+    if (notes) {
+      doc.setFont('helvetica','bold');
+      text('#6B7280');
+      doc.text('NOTAS:', M + 100, y + 6);
+      doc.setFont('helvetica','normal');
+      text('#111111');
+      doc.text(notes, M + 117, y + 6);
+    }
+
+    y += CLI_H;
+
+    // ── ENCABEZADO TABLA ─────────────────────────────────────
+    const cols = [
+      { label: 'CANT.',      w: 18,  align: 'right'  },
+      { label: 'DESCRIPCIÓN',w: 74,  align: 'left'   },
+      { label: 'V. UNITARIO',w: 32,  align: 'right'  },
+      { label: 'IVA %',      w: 24,  align: 'center' },
+      { label: 'V. TOTAL',   w: 34,  align: 'right'  },
+    ];
+    const TH_H = 8;
+    fill('#0D111C'); stroke('#333333');
+    doc.rect(M, y, CW, TH_H, 'FD');
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    text('#FFFFFF');
+    let cx = M;
+    cols.forEach(col => {
+      const tx = col.align === 'right'  ? cx + col.w - 3
+               : col.align === 'center' ? cx + col.w / 2
+               : cx + 3;
+      doc.text(col.label, tx, y + 5.5, { align: col.align === 'center' ? 'center' : col.align });
+      cx += col.w;
+    });
+
+    y += TH_H;
+
+    // ── FILAS DE DATOS ───────────────────────────────────────
+    const ROW_H = 7;
+    const MIN_ROWS = 10;
+    const totalFilas = Math.max(filasValidas.length, MIN_ROWS);
+
+    for (let i = 0; i < totalFilas; i++) {
+      const f = filasValidas[i];
+      const esVacia = !f;
+      const bgColor = i % 2 === 0 ? '#FFFFFF' : '#FEF9C3';
+
+      fill(bgColor); stroke('#E5E7EB');
+      doc.setLineWidth(0.3);
+      doc.rect(M, y, CW, ROW_H, 'FD');
+
+      if (!esVacia) {
+        const sub = parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva)||0)/100);
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(8.5);
+        text('#111111');
+
+        cx = M;
+        const vals = [
+          { v: String(parseFloat(f.cantidad)), align: 'right'  },
+          { v: f.descripcion,                  align: 'left'   },
+          { v: `$${parseFloat(f.precio).toFixed(2)}`, align: 'right' },
+          { v: `${parseFloat(f.iva||0)}%`,     align: 'center' },
+          { v: `$${sub.toFixed(2)}`,           align: 'right'  },
+        ];
+        cols.forEach((col, ci) => {
+          const val = vals[ci];
+          const tx = val.align === 'right'  ? cx + col.w - 3
+                   : val.align === 'center' ? cx + col.w / 2
+                   : cx + 3;
+          // Truncar descripción si es muy larga
+          let txt = val.v;
+          if (ci === 1 && doc.getTextWidth(txt) > col.w - 6) {
+            while (doc.getTextWidth(txt + '…') > col.w - 6 && txt.length > 0) txt = txt.slice(0,-1);
+            txt += '…';
+          }
+          doc.text(txt, tx, y + 4.8, { align: val.align === 'center' ? 'center' : val.align });
+          cx += col.w;
+        });
+      } else {
+        // Fila vacía: solo mostrar 0,00 en última columna
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(8);
+        text('#9CA3AF');
+        doc.text('0,00', M + CW - 3, y + 4.8, { align: 'right' });
+      }
+
+      y += ROW_H;
+    }
+
+    // ── SUBTOTAL / IVA ───────────────────────────────────────
+    const SUB_H = 6.5;
+    if (totalIva > 0) {
+      stroke('#D1D5DB'); fill('#F9FAFB');
+      doc.setLineWidth(0.3);
+      doc.rect(M, y, CW, SUB_H, 'FD');
+      doc.setFont('helvetica','bold');
+      doc.setFontSize(8);
+      text('#6B7280');
+      doc.text('Subtotal:', M + CW - cols[cols.length-1].w - 3, y + 4.5, { align: 'right' });
+      text('#374151');
+      doc.text(`$${subtotalBase.toFixed(2)}`, M + CW - 3, y + 4.5, { align: 'right' });
+      y += SUB_H;
+
+      fill('#F9FAFB');
+      doc.rect(M, y, CW, SUB_H, 'FD');
+      text('#6B7280');
+      doc.text('IVA:', M + CW - cols[cols.length-1].w - 3, y + 4.5, { align: 'right' });
+      text('#374151');
+      doc.text(`$${totalIva.toFixed(2)}`, M + CW - 3, y + 4.5, { align: 'right' });
+      y += SUB_H;
+    }
+
+    // ── FILA TOTAL ───────────────────────────────────────────
+    const TOT_H = 10;
+    fill('#F5C400'); stroke('#333333');
+    doc.setLineWidth(0.6);
+    doc.rect(M, y, CW, TOT_H, 'FD');
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(11);
+    text('#111111');
+    doc.text('TOTAL', M + CW - cols[cols.length-1].w - 3, y + 6.8, { align: 'right' });
+    doc.setFontSize(13);
+    doc.text(`$${total.toFixed(2)}`, M + CW - 3, y + 6.8, { align: 'right' });
+
+    // ── PIE ──────────────────────────────────────────────────
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(7.5);
+    text('#9CA3AF');
+    doc.text('Este documento no es un comprobante fiscal.', PW / 2, 285, { align: 'center' });
+
+    doc.save(nombreArchivo);
+  };
+
   const tomarCaptura = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para capturar'); return; }
 
-    const el = tablaRef.current;
-    if (!el) return;
+    const tipoDoc    = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc  = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const nombre     = `${(idEdicion ? tipoEdicion : tipoNuevo)}-${numeroDoc}-${fecha}.png`;
+    const html       = generarHTMLCaptura({
+      tipo: tipoDoc, numero: numeroDoc,
+      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
+      filas: filasValidas, subtotalBase, totalIva, total,
+    });
 
-    const originalScrollX = window.scrollX;
-    const originalScrollY = window.scrollY;
+    const htmlCompleto = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; background: #fff; padding: 0; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`;
 
     try {
-      if (!window.html2canvas) {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        document.head.appendChild(script);
-        await new Promise((res, rej) => { script.onload = res; script.onerror = rej; });
+      const res  = await api.post('/documentos/captura', { html: htmlCompleto, nombre }, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'image/png' });
+      let copiado = false;
+      try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); copiado = true; } catch {}
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = nombre; a.click(); URL.revokeObjectURL(url);
+      if (copiado) {
+        const toast = document.createElement('div');
+        toast.innerHTML = `<div style="display:flex;align-items:center;gap:12px;"><div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div style="font-size:13px;font-weight:700;color:#fff;">Imagen copiada al portapapeles</div><div style="font-size:11px;color:#94a3b8;margin-top:2px;">Presiona <kbd style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);border-radius:4px;padding:1px 5px;font-size:10px;color:#e2e8f0;">Ctrl+V</kbd> para pegar en WhatsApp u otra app</div></div></div>`;
+        toast.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(0);background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border:1px solid rgba(255,255,255,0.08);box-shadow:0 8px 32px rgba(0,0,0,0.35),0 0 0 1px rgba(16,185,129,0.15);padding:12px 18px;border-radius:14px;z-index:99999;opacity:1;transition:opacity .5s ease,transform .5s ease;pointer-events:none;min-width:320px;';
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateX(-50%) translateY(8px)'; setTimeout(()=>toast.remove(),500); }, 3000);
       }
-
-      el.scrollIntoView({ block: 'start', inline: 'start' });
-
-      // Ocultar campo de Notas dinámicamente antes de renderizar
-      const contenedorNotas = el.querySelector('[data-capture-notas]');
-      if (contenedorNotas) {
-        contenedorNotas.style.display = 'none';
-      }
-
-      // Reemplazar el recuadro negro (tipo/número) con contenido estático limpio para la captura
-      const headerTipo = el.querySelector('[data-capture-header-tipo]');
-      let hijosOcultos = [];
-      let divEstatico = null;
-      if (headerTipo) {
-        const tipoActual = idEdicion ? tipoEdicion : tipoNuevo;
-        const numeroActual = idEdicion ? numeroEdicion : numeroPreview;
-        const colorTipo = tipoActual === 'recibo' ? '#6ee7b7' : '#93c5fd';
-        // Ocultar todos los hijos actuales
-        hijosOcultos = Array.from(headerTipo.children);
-        hijosOcultos.forEach(h => { h.style.display = 'none'; });
-        // Insertar div estático limpio
-        divEstatico = document.createElement('div');
-        divEstatico.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;';
-        divEstatico.innerHTML = `
-          <div style="font-size:18px;font-weight:900;color:${colorTipo};text-transform:uppercase;letter-spacing:1px;">${(tipoActual || 'DOCUMENTO').toUpperCase()}</div>
-          ${numeroActual ? `<div style="font-size:13px;font-weight:700;color:${colorTipo};letter-spacing:0.5px;">${numeroActual}</div>` : ''}
-          <div style="font-size:11px;color:#94a3b8;">${fecha}</div>
-        `;
-        headerTipo.appendChild(divEstatico);
-      }
-
-      const inputsOriginales = Array.from(el.querySelectorAll('input'));
-      const datosInputs = inputsOriginales.map(inp => {
-        const comp = window.getComputedStyle(inp);
-        let valor = inp.value || '';
-        const esPlaceholder = !inp.value;
-        if (inp.type === 'date' && inp.value) {
-          const [y, m, d] = inp.value.split('-');
-          valor = `${d}/${m}/${y}`;
-        }
-        return {
-          valor: esPlaceholder ? (inp.placeholder || '') : valor,
-          esPlaceholder,
-          width: comp.width, height: comp.height,
-          fontSize: comp.fontSize, fontFamily: comp.fontFamily,
-          fontWeight: comp.fontWeight, color: comp.color,
-          paddingLeft: comp.paddingLeft, paddingRight: comp.paddingRight,
-          textAlign: comp.textAlign,
-        };
-      });
-
-      const restauraciones = [];
-
-      inputsOriginales.forEach((inp, idx) => {
-        const d = datosInputs[idx];
-        const div = document.createElement('div');
-        div.textContent = d.valor;
-        div.style.cssText = [
-          'display:flex', 'align-items:center',
-          `width:${d.width}`, `height:${d.height}`,
-          `font-size:${d.fontSize}`, `font-family:${d.fontFamily}`,
-          `font-weight:${d.fontWeight}`,
-          `color:${d.esPlaceholder ? '#9ca3af' : d.color}`,
-          'background:transparent', 'border:none',
-          `padding-left:${d.paddingLeft}`, `padding-right:${d.paddingRight}`,
-          'box-sizing:border-box', 'white-space:nowrap',
-          'overflow:hidden', 'text-overflow:ellipsis',
-          `text-align:${d.textAlign}`,
-          d.textAlign === 'center' ? 'justify-content:center' : d.textAlign === 'right' ? 'justify-content:flex-end' : 'justify-content:flex-start'
-        ].join(';');
-        inp.parentNode.insertBefore(div, inp);
-        inp.style.display = 'none';
-        restauraciones.push(() => { inp.style.display = ''; div.remove(); });
-      });
-
-      const botonAgregar = el.querySelector('button[data-agregar]');
-      const tdAgregar = botonAgregar?.closest('td');
-      let restaurarAgregar = null;
-      if (tdAgregar) {
-        const colSpanOrig = tdAgregar.colSpan;
-        const innerOrig   = tdAgregar.innerHTML;
-        const celdas = [];
-        for (let i = 0; i < 5; i++) {
-          const td = document.createElement('td');
-          td.style.cssText = 'padding:7px 10px;border-right:1px solid #e5e7eb;';
-          celdas.push(td);
-        }
-        const tdZero = document.createElement('td');
-        tdZero.textContent = '0,00';
-        tdZero.style.cssText = 'padding:7px 12px;text-align:right;color:#9ca3af;font-size:12px;border-right:1px solid #e5e7eb;';
-        celdas.push(tdZero);
-        tdAgregar.replaceWith(...celdas);
-        restaurarAgregar = () => {
-          celdas[0].replaceWith(tdAgregar);
-          celdas.slice(1).forEach(td => td.remove());
-          tdAgregar.colSpan = colSpanOrig;
-          tdAgregar.innerHTML = innerOrig;
-        };
-      }
-
-      const botonesTrash = Array.from(el.querySelectorAll('button'));
-      botonesTrash.forEach(b => { b.style.visibility = 'hidden'; });
-
-      await new Promise(res => setTimeout(res, 50));
-
-      const canvas = await window.html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-      });
-
-      // Restaurar todo a la normalidad en la pantalla
-      restauraciones.forEach(fn => fn());
-      botonesTrash.forEach(b => { b.style.visibility = ''; });
-      if (restaurarAgregar) restaurarAgregar();
-      if (contenedorNotas) {
-        contenedorNotas.style.display = 'flex';
-      }
-      if (headerTipo) {
-        hijosOcultos.forEach(h => { h.style.display = ''; });
-        if (divEstatico) divEstatico.remove();
-      }
-
-      window.scrollTo(originalScrollX, originalScrollY);
-
-      const tipoCaptura = idEdicion ? tipoEdicion : tipoNuevo;
-      const numeroCaptura = idEdicion ? (numeroEdicion || 'borrador') : (numeroPreview || 'borrador');
-      const link = document.createElement('a');
-      link.download = `${tipoCaptura}-${numeroCaptura}-${fecha}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-
-    } catch (err) {
-      console.error(err);
-      window.scrollTo(originalScrollX, originalScrollY);
-      alert('Error al tomar captura: ' + err.message);
-    }
+    } catch (err) { console.error(err); alert('Error al tomar captura'); }
   };
 
   return (
@@ -651,7 +793,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
                   {/* Cantidad */}
                   <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
-                    <input type="number" value={fila.cantidad} min="0.01" step="0.01"
+                    <input type="number" value={fila.cantidad} min="1" step="1"
                       onChange={e => actualizarFila(fila._id, { cantidad: e.target.value }, true)}
                       style={{ ...celdaSt, width: '100%', textAlign: 'center', background: 'transparent',
                         border: '1px solid transparent', borderRadius: 4 }} />
@@ -901,12 +1043,12 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         </div>
       )}
 
-      {/* Modal Vista Previa PDF — visor nativo del navegador */}
+      {/* Modal Vista Previa PDF — visor nativo con selector de formato */}
       {modalPDF && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 60,
           display: 'flex', flexDirection: 'column', background: '#525659' }}>
 
-          {/* Iframe visor PDF nativo — ocupa todo menos barra inferior */}
+          {/* Iframe visor PDF nativo */}
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {pdfGenerando && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex',
@@ -920,23 +1062,46 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               </div>
             )}
             {pdfBlobUrl && (
-              <iframe
-                src={pdfBlobUrl}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                title={pdfNombre}
-              />
+              <iframe src={pdfBlobUrl} style={{ width: '100%', height: '100%', border: 'none' }}
+                title={pdfNombre} />
             )}
           </div>
 
-          {/* Barra inferior estilo sistema de facturación */}
+          {/* Barra inferior */}
           <div style={{
             background: '#3c4043', borderTop: '1px solid #5f6368',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 12, padding: '10px 24px', flexShrink: 0,
+            gap: 16, padding: '10px 24px', flexShrink: 0, flexWrap: 'wrap',
           }}>
-            <button
-              onClick={descargarBlobPDF}
-              disabled={pdfGenerando}
+
+            {/* Selector de formato */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6,
+              background: '#2d2f31', borderRadius: 8, padding: '4px 6px',
+              border: '1px solid #5f6368' }}>
+              <span style={{ color: '#9aa0a6', fontSize: 11, fontWeight: 600,
+                marginRight: 4, whiteSpace: 'nowrap' }}>FORMATO:</span>
+              {[
+                { id: 1, label: 'Formato PDF' },
+                { id: 2, label: 'Tabla' },
+              ].map(op => (
+                <button key={op.id}
+                  onClick={() => cambiarOpcionPDF(op.id)}
+                  disabled={pdfGenerando}
+                  style={{
+                    background: pdfOpcion === op.id ? '#1a73e8' : 'transparent',
+                    border: pdfOpcion === op.id ? 'none' : '1px solid #5f6368',
+                    color: pdfOpcion === op.id ? '#fff' : '#bdc1c6',
+                    borderRadius: 6, padding: '6px 14px', fontWeight: 600,
+                    fontSize: 12, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
+                    transition: 'all .15s', whiteSpace: 'nowrap',
+                    opacity: pdfGenerando ? 0.6 : 1,
+                  }}>
+                  {op.label}
+                </button>
+              ))}
+            </div>
+
+            <button onClick={descargarBlobPDF} disabled={pdfGenerando}
               style={{
                 background: '#1a73e8', border: 'none', color: '#fff',
                 borderRadius: 6, padding: '10px 24px', fontWeight: 700,
@@ -949,8 +1114,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               onMouseLeave={e => { e.currentTarget.style.background = '#1a73e8'; }}>
               <IcoDownload /> DESCARGAR PDF
             </button>
-            <button
-              onClick={cerrarModalPDF}
+            <button onClick={cerrarModalPDF}
               style={{
                 background: '#5f6368', border: 'none', color: '#e8eaed',
                 borderRadius: 6, padding: '10px 28px', fontWeight: 700,
@@ -1021,6 +1185,25 @@ const celdaSt = {
   outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
 };
 
+export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>${tipo} ${numero}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, sans-serif; background: #fff; padding: 36px 32px 20px; }
+    @media print { body { margin: 0; padding: 12px; } }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  </style>
+</head>
+<body>
+${generarHTMLCaptura({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total })}
+</body>
+</html>
+`;
+
 export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
 <div style="font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;">
   <div style="display:flex;align-items:stretch;border:2px solid #333;">
@@ -1041,8 +1224,6 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
   <div style="background:#fef3c7;border:1px solid #333;border-top:none;border-bottom:1px solid #aaa;padding:8px 16px;display:flex;gap:20px;align-items:center;">
     <span style="color:#6b7280;font-weight:700;font-size:12px;">CLIENTE:</span>
     <strong style="color:#111;font-size:13px;">${cliente}</strong>
-    <span style="color:#6b7280;font-weight:700;font-size:12px;">FECHA:</span>
-    <strong style="color:#111;font-size:13px;">${fecha}</strong>
   </div>
 
   <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #333;border-top:none;">
@@ -1060,24 +1241,24 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
     <tbody>
       ${filas.map((f, idx) => `
         <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#fef9c3'};border-bottom:1px solid #d1d5db;">
-          <td style="padding:7px 10px;color:#9ca3af;font-size:12px;text-align:center;border-right:1px solid #e5e7eb;">${idx + 1}</td>
-          <td style="padding:7px 10px;border-right:1px solid #e5e7eb;font-family:monospace;font-size:12px;">${f.codigo || ''}</td>
-          <td style="padding:7px 10px;border-right:1px solid #e5e7eb;">${f.descripcion}</td>
-          <td style="padding:7px 10px;text-align:center;border-right:1px solid #e5e7eb;">${parseFloat(f.cantidad)}</td>
-          <td style="padding:7px 10px;text-align:right;border-right:1px solid #e5e7eb;">$${parseFloat(f.precio).toFixed(2)}</td>
-          <td style="padding:7px 10px;text-align:center;border-right:1px solid #e5e7eb;">${parseFloat(f.iva || 0)}%</td>
-          <td style="padding:7px 10px;text-align:right;font-weight:600;">$${parseFloat(f.subtotal || 0).toFixed(2)}</td>
+          <td style="padding:10px 10px;height:40px;color:#9ca3af;font-size:12px;text-align:center;border-right:1px solid #e5e7eb;">${idx + 1}</td>
+          <td style="padding:10px 10px;height:40px;border-right:1px solid #e5e7eb;font-size:12px;">${f.codigo || ''}</td>
+          <td style="padding:10px 10px;height:40px;border-right:1px solid #e5e7eb;">${f.descripcion}</td>
+          <td style="padding:10px 10px;height:40px;text-align:center;border-right:1px solid #e5e7eb;">${parseFloat(f.cantidad)}</td>
+          <td style="padding:10px 10px;height:40px;text-align:right;border-right:1px solid #e5e7eb;">$${parseFloat(f.precio).toFixed(2)}</td>
+          <td style="padding:10px 10px;height:40px;text-align:center;border-right:1px solid #e5e7eb;">${parseFloat(f.iva || 0)}%</td>
+          <td style="padding:10px 10px;height:40px;text-align:right;font-weight:600;">$${parseFloat(f.subtotal || 0).toFixed(2)}</td>
         </tr>
       `).join('')}
       ${Array.from({ length: Math.max(0, 8 - filas.length) }).map((_, i) => `
         <tr style="background:${(filas.length + i) % 2 === 0 ? '#ffffff' : '#fef9c3'};border-bottom:1px solid #e5e7eb;">
-          <td style="padding:7px 10px;color:#e5e7eb;font-size:12px;text-align:center;border-right:1px solid #e5e7eb;">${filas.length + i + 1}</td>
-          <td style="border-right:1px solid #e5e7eb;padding:7px 10px;"></td>
-          <td style="border-right:1px solid #e5e7eb;padding:7px 10px;"></td>
-          <td style="border-right:1px solid #e5e7eb;padding:7px 10px;"></td>
-          <td style="border-right:1px solid #e5e7eb;padding:7px 10px;"></td>
-          <td style="border-right:1px solid #e5e7eb;padding:7px 10px;"></td>
-          <td style="padding:7px 12px;text-align:right;color:#9ca3af;font-size:12px;">0,00</td>
+          <td style="padding:10px 10px;height:40px;color:#e5e7eb;font-size:12px;text-align:center;border-right:1px solid #e5e7eb;">${filas.length + i + 1}</td>
+          <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
+          <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
+          <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
+          <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
+          <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
+          <td style="height:40px;padding:10px 12px;text-align:right;color:#9ca3af;font-size:12px;">0,00</td>
         </tr>
       `).join('')}
       ${totalIva > 0 ? `
@@ -1112,30 +1293,37 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     * { margin:0; padding:0; box-sizing:border-box; }
     body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #000; background: #fff; }
     .ticket { width: 72mm; margin: 0 auto; padding: 4mm 3mm; }
-    .header-box { background: #000; color: #fff; padding: 6px 8px; margin-bottom: 0; border: 1px solid #000; }
-    .empresa-nombre { font-size: 13pt; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
-    .empresa-info   { font-size: 7pt; margin-top: 3px; line-height: 1.5; color: #ddd; }
-    .doc-box { border: 1px solid #000; border-top: none; padding: 5px 8px; background: #f5f5f5; }
-    .doc-tipo { font-size: 11pt; font-weight: 900; text-transform: uppercase; text-align: center; }
-    .doc-num  { font-size: 8pt; text-align: center; color: #333; margin-top: 1px; }
-    .doc-fecha { font-size: 7pt; text-align: center; color: #555; margin-top: 1px; }
-    .cliente-box { border: 1px solid #000; border-top: none; padding: 4px 8px; font-size: 7.5pt; }
+
+    .header-box { border: 2px solid #000; display: flex; align-items: stretch; }
+    .header-left { flex: 1; min-width: 0; padding: 7px 7px 7px 8px; border-right: 2px solid #000; overflow: hidden; }
+    .header-right { width: 60px; min-width: 60px; max-width: 60px; padding: 6px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+    .empresa-nombre { font-size: 11pt; font-weight: 900; text-transform: uppercase; color: #000; }
+    .empresa-info   { font-size: 6.5pt; margin-top: 4px; line-height: 1.7; color: #000; font-weight: 700; }
+    .doc-tipo  { font-size: 8.5pt; font-weight: 900; text-transform: uppercase; text-align: center; color: #000; word-break: break-word; hyphens: auto; line-height: 1.2; }
+    .doc-num   { font-size: 6.5pt; font-weight: 900; text-align: center; color: #000; word-break: break-all; }
+    .doc-fecha { font-size: 6pt; font-weight: 700; text-align: center; color: #000; }
+
+    .cliente-box { border: 2px solid #000; border-top: none; padding: 4px 8px; font-size: 7.5pt; }
     .cliente-row { display: flex; gap: 4px; margin: 1px 0; }
-    .cliente-label { font-weight: 700; min-width: 42px; }
-    .sep { border-top: 1px dashed #000; margin: 4px 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
-    .tbl-header { background: #000; }
-    .tbl-header th { color: #fff; padding: 3px 4px; font-weight: 700; text-transform: uppercase; font-size: 7pt; border-right: 1px solid #444; }
+    .cliente-label { font-weight: 900; min-width: 42px; color: #000; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 7.5pt; border: 2px solid #000; border-top: none; }
+    .tbl-header th { color: #000; background: #fff; padding: 4px 4px; font-weight: 900; text-transform: uppercase; font-size: 7pt; border-bottom: 2px solid #000; border-right: 1px solid #000; }
     .tbl-header th:last-child { border-right: none; }
     .tbl-header th.r { text-align: right; }
-    tbody tr td { padding: 3px 4px; border-bottom: 1px dotted #ccc; vertical-align: top; }
-    tbody tr:nth-child(even) { background: #f9f9f9; }
+    tbody tr td { padding: 3px 4px; border-bottom: 1px solid #ccc; vertical-align: top; color: #000; }
+    tbody tr:nth-child(even) { background: #f5f5f5; }
     td.r { text-align: right; }
     td.desc { word-wrap: break-word; max-width: 90px; }
-    .totales-box { border: 1px solid #000; border-top: 2px solid #000; padding: 4px 8px; margin-top: 0; }
-    .tot-row { display: flex; justify-content: space-between; font-size: 7.5pt; margin: 2px 0; }
-    .tot-final { display: flex; justify-content: space-between; font-size: 13pt; font-weight: 900; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px; }
-    .pie { font-size: 7pt; text-align: center; margin-top: 6px; color: #555; line-height: 1.5; }
+    .iva-label { font-size: 6.5pt; color: #000; font-weight: 900; }
+
+    .totales-box { border: 2px solid #000; border-top: none; padding: 5px 8px; }
+    .tot-sep   { border-top: 1px solid #000; margin: 3px 0; }
+    .tot-row   { display: flex; justify-content: space-between; font-size: 7.5pt; font-weight: 700; color: #000; margin: 2px 0; }
+    .tot-final { display: flex; justify-content: space-between; font-size: 13pt; font-weight: 900; color: #000; margin-top: 4px; }
+
+    .sep { border-top: 1px dashed #000; margin: 5px 0; }
+    .pie { font-size: 7pt; text-align: center; color: #000; font-weight: 700; line-height: 1.6; }
     @media print { body { margin: 0; } }
     @page { margin: 0; size: 80mm auto; }
     html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -1143,15 +1331,20 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
 </head>
 <body>
 <div class="ticket">
-  <div class="header-box">
-    <div class="empresa-nombre">Distribuidora RC</div>
-    <div class="empresa-info">Chimbacalle, Av Napo y Salcedo<br>Tel: 0998024883 – 0984666022</div>
-  </div>
 
-  <div class="doc-box">
-    <div class="doc-tipo">${tipo}</div>
-    <div class="doc-num">N° ${numero}</div>
-    <div class="doc-fecha">${fecha}</div>
+  <div class="header-box">
+    <div class="header-left">
+      <div class="empresa-nombre">Distribuidora RC</div>
+      <div class="empresa-info">
+        Chimbacalle, Av Napo y Salcedo<br>
+        Tel: 0998024883 \u2013 0984666022
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="doc-tipo">${tipo}</div>
+      <div class="doc-num">N\u00b0 ${numero}</div>
+      <div class="doc-fecha">${fecha}</div>
+    </div>
   </div>
 
   <div class="cliente-box">
@@ -1166,7 +1359,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     <thead>
       <tr class="tbl-header">
         <th style="width:22px">CANT</th>
-        <th>DESCRIPCIÓN</th>
+        <th>DESCRIPCI\u00d3N</th>
         <th class="r" style="width:36px">P.U.</th>
         <th class="r" style="width:40px">TOTAL</th>
       </tr>
@@ -1176,7 +1369,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
         const sub = parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva) || 0) / 100);
         return `<tr>
           <td class="r">${parseFloat(f.cantidad)}</td>
-          <td class="desc">${f.descripcion}${parseFloat(f.iva) > 0 ? `<br><span style="font-size:6.5pt;color:#666">IVA ${parseFloat(f.iva)}%</span>` : ''}</td>
+          <td class="desc">${f.descripcion}${parseFloat(f.iva) > 0 ? `<br><span class="iva-label">IVA ${parseFloat(f.iva)}%</span>` : ''}</td>
           <td class="r">${parseFloat(f.precio).toFixed(2)}</td>
           <td class="r">${sub.toFixed(2)}</td>
         </tr>`;
@@ -1188,9 +1381,13 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     ${totalIva > 0 ? `
       <div class="tot-row"><span>SUBTOTAL SIN IVA:</span><span>$${subtotalBase.toFixed(2)}</span></div>
       <div class="tot-row"><span>IVA:</span><span>$${totalIva.toFixed(2)}</span></div>
+      <div class="tot-sep"></div>
     ` : ''}
     <div class="tot-final"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
   </div>
+
+  <div class="sep"></div>
+  <div class="pie">\u00a1Gracias por su compra!<br>Este documento no es un comprobante fiscal.</div>
 </div>
 </body>
 </html>
