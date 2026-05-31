@@ -36,6 +36,9 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [modalPDF, setModalPDF]         = useState(false);
   const [idEdicion, setIdEdicion]       = useState(null);
   const [tipoEdicion, setTipoEdicion]   = useState(null);
+  const [tipoNuevo, setTipoNuevo]       = useState('recibo');
+  const [numeroPreview, setNumeroPreview] = useState('');
+  const [numeroEdicion, setNumeroEdicion] = useState('');
   const tablaRef = useRef(null);
   const [sugerencias, setSugerencias]   = useState([]);
   const [filaActiva, setFilaActiva]     = useState(null);
@@ -45,7 +48,28 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const activeInputRef   = useRef(null);
   const busquedaTimeout  = useRef(null);
 
-  // Cerrar al click fuera
+  // Obtener próximo número al montar y al cambiar tipoNuevo (solo cuando no hay edición)
+  useEffect(() => {
+    if (idEdicion) return;
+    const obtenerNumero = async () => {
+      try {
+        // Consultamos el último número de documentos del tipo y calculamos el siguiente
+        const { data } = await api.get(`/documentos?tipo=${tipoNuevo}&limit=1`);
+        const ultimo = data.data?.[0]?.numero || null;
+        if (ultimo) {
+          const n = parseInt(ultimo.replace(/\D/g, ''), 10) + 1;
+          const prefix = tipoNuevo === 'proforma' ? 'P' : 'R';
+          setNumeroPreview(`${prefix}-${String(n).padStart(4, '0')}`);
+        } else {
+          setNumeroPreview(tipoNuevo === 'proforma' ? 'P-0001' : 'R-0001');
+        }
+      } catch {
+        setNumeroPreview(tipoNuevo === 'proforma' ? 'P-????' : 'R-????');
+      }
+    };
+    obtenerNumero();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipoNuevo, idEdicion]);
   useEffect(() => {
     const handler = (e) => {
       if (
@@ -72,6 +96,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     })));
     setIdEdicion(datosEdicion.id || null);
     setTipoEdicion(datosEdicion.tipo || null);
+    setNumeroEdicion(datosEdicion.numero || '');
     if (onDatosUsados) onDatosUsados();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datosEdicion]);
@@ -155,7 +180,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const limpiarTodo  = () => {
     setFilas([filaVacia()]); setCliente(''); setNotas('');
     setFecha(new Date().toISOString().split('T')[0]);
-    setIdEdicion(null); setTipoEdicion(null);
+    setIdEdicion(null); setTipoEdicion(null); setTipoNuevo('recibo'); setNumeroEdicion('');
   };
 
   const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0), 0);
@@ -165,7 +190,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   }, 0);
   const total = subtotalBase + totalIva;
 
-  const guardar = async (tipo) => {
+  const guardar = async () => {
     const filasValidas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
     if (filasValidas.length === 0) { alert('Agrega al menos un producto'); return; }
     setGuardando(true);
@@ -182,9 +207,9 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
           fecha, notas: notes, detalle,
         });
       } else {
-        // Crear nuevo documento
+        // Crear nuevo documento con el tipo ya seleccionado en el recuadro
         await api.post('/documentos', {
-          tipo, cliente: cliente.trim() || 'Consumidor Final',
+          tipo: tipoNuevo, cliente: cliente.trim() || 'Consumidor Final',
           fecha, notas: notes, detalle,
         });
       }
@@ -197,8 +222,10 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
   const imprimirTermica = () => {
     if (filasValidas.length === 0) { alert('No hay productos para imprimir'); return; }
+    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
     const html = generarHTMLTermica({
-      tipo: 'DOCUMENTO', numero: 'BORRADOR',
+      tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
       filas: filasValidas, subtotalBase, totalIva, total,
     });
@@ -219,26 +246,67 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   };
 
   const imprimirDesdeModal = () => {
-    const win = window.open('', '_blank');
-    win.document.write(generarHTML({
-      tipo: 'DOCUMENTO', numero: 'BORRADOR',
-      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
-    }));
-    win.document.close(); win.print();
-  };
-
-  const descargarPDF = () => {
-    const html = generarHTML({
-      tipo: 'DOCUMENTO', numero: 'BORRADOR',
+    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const htmlContent = generarHTML({
+      tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
       filas: filasValidas, subtotalBase, totalIva, total,
     });
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `documento-borrador-${fecha}.html`;
-    a.click(); URL.revokeObjectURL(url);
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(htmlContent);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  };
+
+  const descargarPDF = async () => {
+    if (filasValidas.length === 0) { alert('No hay productos para descargar'); return; }
+
+    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const nombreArchivo = `${(idEdicion ? tipoEdicion : tipoNuevo)}-${numeroDoc}-${fecha}.pdf`;
+
+    const htmlContent = generarHTML({
+      tipo: tipoDoc, numero: numeroDoc,
+      cliente: cliente || 'Consumidor Final', fecha, notas: notes,
+      filas: filasValidas, subtotalBase, totalIva, total,
+    });
+
+    if (!window.html2pdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    const parser = new DOMParser();
+    const docParsed = parser.parseFromString(htmlContent, 'text/html');
+    const pageEl = docParsed.querySelector('.page');
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;overflow:visible;';
+    const styleEl = document.createElement('style');
+    styleEl.textContent = Array.from(docParsed.querySelectorAll('style')).map(s => s.textContent).join('\n') +
+      ' .page { width: 794px !important; padding: 20px !important; box-sizing: border-box !important; }';
+    wrapper.appendChild(styleEl);
+    wrapper.appendChild(pageEl);
+    document.body.appendChild(wrapper);
+    await new Promise(r => setTimeout(r, 150));
+    await window.html2pdf().set({
+      margin: 0,
+      filename: nombreArchivo,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, width: 794, windowWidth: 794 },
+      jsPDF: { unit: 'px', format: 'a4', orientation: 'portrait', hotfixes: ['px_scaling'] },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    }).from(pageEl).save();
+    document.body.removeChild(wrapper);
   };
 
   const tomarCaptura = async () => {
@@ -264,6 +332,28 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       const contenedorNotas = el.querySelector('[data-capture-notas]');
       if (contenedorNotas) {
         contenedorNotas.style.display = 'none';
+      }
+
+      // Reemplazar el recuadro negro (tipo/número) con contenido estático limpio para la captura
+      const headerTipo = el.querySelector('[data-capture-header-tipo]');
+      let hijosOcultos = [];
+      let divEstatico = null;
+      if (headerTipo) {
+        const tipoActual = idEdicion ? tipoEdicion : tipoNuevo;
+        const numeroActual = idEdicion ? numeroEdicion : numeroPreview;
+        const colorTipo = tipoActual === 'recibo' ? '#6ee7b7' : '#93c5fd';
+        // Ocultar todos los hijos actuales
+        hijosOcultos = Array.from(headerTipo.children);
+        hijosOcultos.forEach(h => { h.style.display = 'none'; });
+        // Insertar div estático limpio
+        divEstatico = document.createElement('div');
+        divEstatico.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;';
+        divEstatico.innerHTML = `
+          <div style="font-size:18px;font-weight:900;color:${colorTipo};text-transform:uppercase;letter-spacing:1px;">${(tipoActual || 'DOCUMENTO').toUpperCase()}</div>
+          ${numeroActual ? `<div style="font-size:13px;font-weight:700;color:${colorTipo};letter-spacing:0.5px;">${numeroActual}</div>` : ''}
+          <div style="font-size:11px;color:#94a3b8;">${fecha}</div>
+        `;
+        headerTipo.appendChild(divEstatico);
       }
 
       const inputsOriginales = Array.from(el.querySelectorAll('input'));
@@ -356,11 +446,17 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       if (contenedorNotas) {
         contenedorNotas.style.display = 'flex';
       }
+      if (headerTipo) {
+        hijosOcultos.forEach(h => { h.style.display = ''; });
+        if (divEstatico) divEstatico.remove();
+      }
 
       window.scrollTo(originalScrollX, originalScrollY);
 
+      const tipoCaptura = idEdicion ? tipoEdicion : tipoNuevo;
+      const numeroCaptura = idEdicion ? (numeroEdicion || 'borrador') : (numeroPreview || 'borrador');
       const link = document.createElement('a');
-      link.download = `documento-${fecha}.png`;
+      link.download = `${tipoCaptura}-${numeroCaptura}-${fecha}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
 
@@ -408,15 +504,52 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               <strong>TELÉFONO:</strong> 0998024883 – 0984666022
             </div>
           </div>
-          <div style={{ background: '#0D111C', minWidth: 200, display: 'flex',
+          <div data-capture-header-tipo="true" style={{ background: '#0D111C', minWidth: 200, display: 'flex',
             flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '14px 20px', gap: 4 }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: idEdicion ? C.amarillo : '#fff', textTransform: 'uppercase', letterSpacing: 1 }}>
-              {idEdicion ? `EDITANDO ${tipoEdicion?.toUpperCase() || ''}` : 'NUEVO DOCUMENTO'}
-            </div>
-            <div style={{ fontSize: 13, color: '#bfdbfe', marginTop: 2 }}>
-              {fecha}
-            </div>
+            padding: '14px 20px', gap: 6 }}>
+            {idEdicion ? (
+              /* MODO EDICIÓN: mostrar tipo + número, sin opción a cambiar */
+              <>
+                <div style={{ fontSize: 18, fontWeight: 900, color: tipoEdicion === 'recibo' ? '#6ee7b7' : '#93c5fd',
+                  textTransform: 'uppercase', letterSpacing: 1 }}>
+                  {tipoEdicion === 'recibo' ? 'RECIBO' : 'PROFORMA'}
+                </div>
+                <div style={{ fontSize: 12, color: '#bfdbfe', fontWeight: 700, letterSpacing: 0.5 }}>
+                  {numeroEdicion}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{fecha}</div>
+              </>
+            ) : (
+              /* MODO NUEVO: selector visual clicable */
+              <>
+                <div data-capture-tipo="true" style={{ display: 'flex', gap: 0, borderRadius: 8, overflow: 'hidden',
+                  border: '1px solid #374151' }}>
+                  {[
+                    { key: 'proforma', label: 'PROFORMA', color: '#93c5fd' },
+                    { key: 'recibo',   label: 'RECIBO',   color: '#6ee7b7' },
+                  ].map(opt => (
+                    <button key={opt.key}
+                      onClick={() => setTipoNuevo(opt.key)}
+                      style={{
+                        background: tipoNuevo === opt.key ? '#1e293b' : 'transparent',
+                        border: 'none', cursor: 'pointer',
+                        padding: '6px 14px', fontSize: 13, fontWeight: 900,
+                        color: tipoNuevo === opt.key ? opt.color : '#4b5563',
+                        letterSpacing: 0.8, textTransform: 'uppercase',
+                        borderBottom: tipoNuevo === opt.key ? `2px solid ${opt.color}` : '2px solid transparent',
+                        transition: 'all .15s',
+                      }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: tipoNuevo === 'recibo' ? '#6ee7b7' : '#93c5fd',
+                  fontWeight: 700, letterSpacing: 0.5 }}>
+                  {numeroPreview || '…'}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{fecha}</div>
+              </>
+            )}
           </div>
         </div>
 
@@ -792,15 +925,17 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                 </div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 15, color: C.textPrimary }}>Vista Previa del Documento</div>
-                  <div style={{ fontSize: 12, color: C.textDim }}>Borrador — {cliente || 'Consumidor Final'} — {fecha}</div>
+                  <div style={{ fontSize: 12, color: C.textDim }}>
+                    {(idEdicion ? tipoEdicion : tipoNuevo) === 'recibo' ? 'Recibo' : 'Proforma'} {idEdicion ? numeroEdicion : numeroPreview} — {cliente || 'Consumidor Final'} — {fecha}
+                  </div>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <button onClick={descargarPDF}
+                <button onClick={() => { setModalPDF(false); descargarPDF(); }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff',
-                    border: `1px solid ${C.azul}`, color: C.azul, borderRadius: 8,
+                    border: `1px solid ${C.verde}`, color: C.verde, borderRadius: 8,
                     padding: '8px 14px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-                  <IcoDownload /> Descargar
+                  <IcoDownload /> Descargar PDF
                 </button>
                 <button onClick={imprimirDesdeModal}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, background: C.azul,
@@ -819,7 +954,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
             <div style={{ flex: 1, overflow: 'auto', padding: 20, background: '#f0f0f0' }}>
               <iframe
                 srcDoc={generarHTML({
-                  tipo: 'DOCUMENTO', numero: 'BORRADOR',
+                  tipo: (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase(),
+                  numero: idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR'),
                   cliente: cliente || 'Consumidor Final', fecha, notas: notes,
                   filas: filasValidas, subtotalBase, totalIva, total,
                 })}
@@ -832,70 +968,44 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         </div>
       )}
 
-      {/* Modal elegir tipo */}
+      {/* Modal confirmar guardar */}
       {modalGuardar && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px',
             width: '100%', maxWidth: 420, textAlign: 'center',
             boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
-            <div style={{ width: 56, height: 56, background: idEdicion ? '#fef3c7' : '#f0fdf4', borderRadius: 16,
+            <div style={{ width: 56, height: 56,
+              background: idEdicion ? '#fef3c7' : (tipoNuevo === 'recibo' ? '#f0fdf4' : '#eff6ff'),
+              borderRadius: 16,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px', color: idEdicion ? C.amarillo : C.verde }}>
+              margin: '0 auto 16px',
+              color: idEdicion ? C.amarillo : (tipoNuevo === 'recibo' ? C.verde : C.azul) }}>
               <IcoSave />
             </div>
-            {idEdicion ? (
-              <>
-                <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-                  Guardar cambios
-                </h2>
-                <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
-                  Se actualizará el <strong style={{ color: tipoEdicion === 'recibo' ? C.verde : C.azul }}>
+            <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+              {idEdicion ? 'Guardar cambios' : `Guardar ${tipoNuevo === 'recibo' ? 'Recibo' : 'Proforma'}`}
+            </h2>
+            <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
+              {idEdicion
+                ? <>Se actualizará el <strong style={{ color: tipoEdicion === 'recibo' ? C.verde : C.azul }}>
                     {tipoEdicion === 'recibo' ? 'Recibo' : 'Proforma'}
-                  </strong> existente con los nuevos datos.
-                </p>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  <button onClick={() => guardar(tipoEdicion)} disabled={guardando}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8,
-                      background: tipoEdicion === 'recibo' ? C.verde : C.azul,
-                      border: 'none', color: '#fff',
-                      borderRadius: 12, padding: '14px 28px', fontWeight: 700,
-                      fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}>
-                    <IcoSave /> {guardando ? 'Guardando...' : 'Confirmar'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-                  ¿Cómo deseas guardar?
-                </h2>
-                <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
-                  La <strong style={{ color: C.azul }}>proforma</strong> no descuenta stock.<br/>
-                  El <strong style={{ color: C.verde }}>recibo</strong> descuenta stock inmediatamente.
-                </p>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  <button onClick={() => guardar('proforma')} disabled={guardando}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8,
-                      background: '#eff6ff', border: `2px solid ${C.azul}`, color: C.azul,
-                      borderRadius: 12, padding: '14px 24px', fontWeight: 700,
-                      fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = C.azul; e.currentTarget.style.color = '#fff'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = C.azul; }}>
-                    <IcoProforma /> Proforma
-                  </button>
-                  <button onClick={() => guardar('recibo')} disabled={guardando}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8,
-                      background: '#f0fdf4', border: `2px solid ${C.verde}`, color: C.verde,
-                      borderRadius: 12, padding: '14px 24px', fontWeight: 700,
-                      fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = C.verde; e.currentTarget.style.color = '#fff'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#f0fdf4'; e.currentTarget.style.color = C.verde; }}>
-                    <IcoRecibo /> Recibo
-                  </button>
-                </div>
-              </>
-            )}
+                  </strong> existente con los nuevos datos.</>
+                : tipoNuevo === 'recibo'
+                  ? <>Se guardará como <strong style={{ color: C.verde }}>Recibo</strong>. Se descontará stock inmediatamente.</>
+                  : <>Se guardará como <strong style={{ color: C.azul }}>Proforma</strong>. No descuenta stock.</>
+              }
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button onClick={guardar} disabled={guardando}
+                style={{ display: 'flex', alignItems: 'center', gap: 8,
+                  background: idEdicion ? C.amarillo : (tipoNuevo === 'recibo' ? C.verde : C.azul),
+                  border: 'none', color: '#fff',
+                  borderRadius: 12, padding: '14px 28px', fontWeight: 700,
+                  fontSize: 14, cursor: 'pointer', transition: 'all .15s' }}>
+                <IcoSave /> {guardando ? 'Guardando...' : 'Confirmar'}
+              </button>
+            </div>
             <button onClick={() => setModalGuardar(false)}
               style={{ background: 'none', border: 'none', color: C.textDim,
                 marginTop: 20, cursor: 'pointer', fontSize: 13 }}>
@@ -914,7 +1024,7 @@ const celdaSt = {
   outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
 };
 
-export const generarHTMLCaptura = ({ cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
+export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
 <div style="font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;">
   <div style="display:flex;align-items:stretch;border:2px solid #333;">
     <div style="background:#F5C400;flex:1;padding:14px 20px;">
@@ -925,8 +1035,9 @@ export const generarHTMLCaptura = ({ cliente, fecha, notas, filas, subtotalBase,
       </div>
     </div>
     <div style="background:#0D111C;min-width:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 20px;gap:4px;">
-      <div style="font-size:18px;font-weight:900;color:#fff;text-transform:uppercase;letter-spacing:1px;">NUEVO DOCUMENTO</div>
-      <div style="font-size:13px;color:#bfdbfe;margin-top:2px;">${fecha}</div>
+      <div style="font-size:18px;font-weight:900;color:${tipo?.toLowerCase() === 'recibo' ? '#6ee7b7' : '#93c5fd'};text-transform:uppercase;letter-spacing:1px;">${(tipo || 'DOCUMENTO').toUpperCase()}</div>
+      ${numero ? `<div style="font-size:12px;font-weight:700;color:${tipo?.toLowerCase() === 'recibo' ? '#6ee7b7' : '#93c5fd'};letter-spacing:0.5px;">${numero}</div>` : ''}
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">${fecha}</div>
     </div>
   </div>
 
@@ -1028,7 +1139,9 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     .tot-row { display: flex; justify-content: space-between; font-size: 7.5pt; margin: 2px 0; }
     .tot-final { display: flex; justify-content: space-between; font-size: 13pt; font-weight: 900; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px; }
     .pie { font-size: 7pt; text-align: center; margin-top: 6px; color: #555; line-height: 1.5; }
-    @media print { body { margin: 0; } @page { margin: 2mm; size: 80mm auto; } }
+    @media print { body { margin: 0; } }
+    @page { margin: 0; size: 80mm auto; }
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   </style>
 </head>
 <body>
@@ -1081,9 +1194,6 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     ` : ''}
     <div class="tot-final"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
   </div>
-
-  <div class="sep"></div>
-  <div class="pie">¡Gracias por su compra!<br>Este documento no es un comprobante fiscal.</div>
 </div>
 </body>
 </html>

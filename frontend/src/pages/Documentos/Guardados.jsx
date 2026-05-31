@@ -128,20 +128,74 @@ export default function Guardados({ onVerEnTabla }) {
   };
 
   const imprimir = (doc, detalleImp) => {
-    const win = window.open('', '_blank');
     const filas = detalleImp || detalle;
     const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
     const totalIva     = filas.reduce((s, f) => {
       const base = parseFloat(f.cantidad) * parseFloat(f.precio);
       return s + base * ((parseFloat(f.iva) || 0) / 100);
     }, 0);
-    win.document.write(generarHTML({
+    const html = generarHTML({
       tipo: doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
-    }));
-    win.document.close(); win.print();
+    });
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(html);
+    iframe.contentDocument.close();
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  };
+
+  const descargarPDF = async (doc, detalleImp) => {
+    const filas = detalleImp || detalle;
+    const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
+    const totalIva     = filas.reduce((s, f) => {
+      const base = parseFloat(f.cantidad) * parseFloat(f.precio);
+      return s + base * ((parseFloat(f.iva) || 0) / 100);
+    }, 0);
+    const nombreArchivo = `${doc.tipo}-${doc.numero}-${doc.fecha?.slice(0, 10)}.pdf`;
+    const html = generarHTML({
+      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
+      notas: doc.notas || '', filas,
+      subtotalBase, totalIva, total: subtotalBase + totalIva,
+    });
+
+    if (!window.html2pdf) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    const parser = new DOMParser();
+    const docParsed = parser.parseFromString(html, 'text/html');
+    const pageEl = docParsed.querySelector('.page');
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;overflow:visible;';
+    const styleEl = document.createElement('style');
+    styleEl.textContent = Array.from(docParsed.querySelectorAll('style')).map(s => s.textContent).join('\n') +
+      ' .page { width: 794px !important; padding: 20px !important; box-sizing: border-box !important; }';
+    wrapper.appendChild(styleEl);
+    wrapper.appendChild(pageEl);
+    document.body.appendChild(wrapper);
+    await new Promise(r => setTimeout(r, 150));
+    await window.html2pdf().set({
+      margin: 0,
+      filename: nombreArchivo,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, width: 794, windowWidth: 794 },
+      jsPDF: { unit: 'px', format: 'a4', orientation: 'portrait', hotfixes: ['px_scaling'] },
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+    }).from(pageEl).save();
+    document.body.removeChild(wrapper);
   };
 
   const imprimirTermica = (doc, detalleImp) => {
@@ -173,6 +227,7 @@ export default function Guardados({ onVerEnTabla }) {
     if (onVerEnTabla) onVerEnTabla({
       id: docSeleccionado.id,
       tipo: docSeleccionado.tipo,
+      numero: docSeleccionado.numero,
       cliente: editCliente,
       fecha: editFecha,
       notas: editNotas,
@@ -331,7 +386,10 @@ export default function Guardados({ onVerEnTabla }) {
               Térmica
             </BtnModal>
             <BtnModal color={C.azul} outline onClick={() => imprimir(docSeleccionado, detalle)} icon={<IcoPDF />}>
-              PDF
+              Imprimir
+            </BtnModal>
+            <BtnModal color={C.verde} outline onClick={() => descargarPDF(docSeleccionado, detalle)} icon={<IcoPDF />}>
+              Descargar PDF
             </BtnModal>
             <BtnModal color={C.textDim} outline onClick={() => setModalVer(false)}>
               Cerrar
@@ -611,157 +669,204 @@ const BtnModal = ({ color, onClick, children, disabled, outline, icon }) => (
 );
 
 // ── HTML impresión ─────────────────────────────────────────
-export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
-<!DOCTYPE html>
+export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => {
+  // Separar productos con IVA y sin IVA
+  const subtotal15 = filas.reduce((s, f) => {
+    const iva = parseFloat(f.iva) || 0;
+    if (iva > 0) return s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
+    return s;
+  }, 0);
+  const subtotal0 = filas.reduce((s, f) => {
+    const iva = parseFloat(f.iva) || 0;
+    if (iva === 0) return s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
+    return s;
+  }, 0);
+  const ivaLabel = filas.find(f => parseFloat(f.iva) > 0) ? `${parseFloat(filas.find(f => parseFloat(f.iva) > 0).iva)}%` : '15%';
+
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>${tipo} ${numero}</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family: Arial, sans-serif; font-size:12px; color:#111; background:#fff; }
-    .page { width: 720px; margin: 0 auto; padding: 24px; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size:11px; color:#111; background:#fff; }
+    .page { width: 750px; margin: 0 auto; padding: 20px 24px; }
 
-    /* ── Cabecera estilo Ferretería Carrión ── */
-    .header {
-      display: flex; justify-content: space-between; align-items: stretch;
-      border: 2px solid #333; margin-bottom: 0;
+    /* ── Cabecera ── */
+    .header { display:flex; justify-content:space-between; align-items:stretch; border:1.5px solid #333; }
+    .header-left { flex:1; padding:14px 18px; display:flex; flex-direction:column; justify-content:center; }
+    .logo-box { display:flex; align-items:center; gap:12px; margin-bottom:8px; }
+    .logo-letters {
+      width:52px; height:52px; background:#F5C400; border:2px solid #111;
+      display:flex; align-items:center; justify-content:center;
+      font-size:22px; font-weight:900; color:#111; letter-spacing:-1px; flex-shrink:0;
     }
-    .header-left {
-      background: #F5C400; flex: 1;
-      padding: 14px 18px; display: flex; flex-direction: column; justify-content: center;
-    }
-    .empresa-nombre {
-      font-size: 26px; font-weight: 900; color: #111; letter-spacing: 0.5px;
-      text-transform: uppercase;
-    }
-    .empresa-info { font-size: 11px; color: #333; margin-top: 6px; line-height: 1.7; }
-    .empresa-info strong { font-weight: 700; }
+    .empresa-nombre { font-size:20px; font-weight:900; color:#111; text-transform:uppercase; letter-spacing:0.5px; }
+    .empresa-sub { font-size:9.5px; color:#555; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px; }
+    .empresa-info { font-size:10px; color:#333; line-height:1.7; }
+    .empresa-info strong { font-weight:700; }
+
     .header-right {
-      background: #0D111C; min-width: 180px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 14px 18px; gap: 4px;
+      border-left:1.5px solid #333; min-width:220px; padding:10px 16px;
+      display:flex; flex-direction:column; gap:2px;
     }
-    .doc-tipo  { font-size: 20px; font-weight: 900; color: #fff; text-transform: uppercase; letter-spacing: 1px; }
-    .doc-num   { font-size: 15px; font-weight: 700; color: #fde68a; }
-    .doc-fecha { font-size: 11px; color: #bfdbfe; margin-top: 2px; }
+    .doc-tipo-label { font-size:18px; font-weight:900; color:#111; text-align:center; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; border-bottom:1px solid #ccc; padding-bottom:6px; }
+    .campo-row { display:flex; flex-direction:column; margin-bottom:4px; }
+    .campo-label { font-size:9px; font-weight:700; color:#666; text-transform:uppercase; letter-spacing:0.5px; }
+    .campo-valor { font-size:11px; font-weight:700; color:#111; }
+    .campo-valor.num { color:#cc0000; font-size:12px; }
 
-    /* ── Cliente ── */
-    .cliente-row {
-      background: #fef3c7; border: 1px solid #333; border-top: none;
-      padding: 7px 14px; font-size: 12px;
-      display: flex; gap: 24px; align-items: center;
+    /* ── Sección cliente ── */
+    .cliente-section { border:1.5px solid #333; border-top:none; padding:8px 12px; }
+    .cliente-grid { display:grid; grid-template-columns:1fr 1fr; gap:4px 24px; }
+    .campo-horiz { display:flex; gap:6px; align-items:baseline; }
+    .campo-horiz .lbl { font-size:9.5px; font-weight:700; color:#444; min-width:80px; }
+    .campo-horiz .val { font-size:10.5px; font-weight:600; color:#111; }
+
+    /* ── Tabla de productos ── */
+    .tabla-wrap { border:1.5px solid #333; border-top:none; }
+    table.productos { width:100%; border-collapse:collapse; }
+    table.productos thead tr { background:#000; }
+    table.productos thead th {
+      color:#fff; padding:6px 8px; font-size:9.5px; font-weight:700;
+      text-transform:uppercase; letter-spacing:0.5px;
+      border-right:1px solid #444; text-align:left;
     }
-    .cliente-row span { color: #6b7280; font-weight: 600; }
-    .cliente-row strong { color: #111; font-weight: 700; }
-
-    /* ── Tabla ── */
-    table { width: 100%; border-collapse: collapse; border: 1px solid #333; border-top: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    thead tr { background: #0D111C; }
-    thead th {
-      color: #fff; padding: 8px 12px; font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: 0.8px; border-right: 1px solid #3b5fc0;
-      border-bottom: 2px solid #333;
+    table.productos thead th:last-child { border-right:none; }
+    table.productos thead th.r { text-align:right; }
+    table.productos thead th.c { text-align:center; }
+    table.productos tbody td {
+      padding:5px 8px; border-bottom:1px solid #ddd; border-right:1px solid #e5e7eb;
+      font-size:10.5px; vertical-align:middle;
     }
-    thead th:last-child { border-right: none; }
-    thead th.right { text-align: right; }
-    tbody td { padding: 7px 12px; border-bottom: 1px solid #d1d5db; border-right: 1px solid #e5e7eb; font-size: 12px; }
-    tbody td:last-child { border-right: none; }
-    tbody td.right { text-align: right; }
-    tbody tr:nth-child(even) { background: #fef9c3; }
-    tbody tr:nth-child(odd)  { background: #ffffff; }
+    table.productos tbody td:last-child { border-right:none; }
+    table.productos tbody td.r { text-align:right; }
+    table.productos tbody td.c { text-align:center; }
+    table.productos tbody tr:nth-child(even) { background:#f9f9f9; }
 
-    /* Filas vacías */
-    .fila-vacia td { color: #d1d5db; padding: 6px 12px; border-bottom: 1px solid #e5e7eb; }
+    /* ── Bloque de totales (estilo SRI) ── */
+    .bottom-section { display:flex; border:1.5px solid #333; border-top:none; }
+    .info-adicional { flex:1; padding:10px 12px; border-right:1px solid #ccc; font-size:10px; }
+    .info-adicional .ia-titulo { font-weight:700; font-size:9.5px; text-transform:uppercase; color:#444; margin-bottom:6px; border-bottom:1px solid #ddd; padding-bottom:4px; }
+    .info-adicional .ia-row { display:flex; gap:8px; margin-bottom:3px; }
+    .info-adicional .ia-lbl { font-weight:700; color:#555; min-width:80px; }
+    .totales-box { min-width:240px; }
+    table.totales { width:100%; border-collapse:collapse; }
+    table.totales td { padding:5px 10px; font-size:10.5px; border-bottom:1px solid #e5e7eb; }
+    table.totales td.tot-lbl { font-weight:700; color:#333; background:#f5f5f5; }
+    table.totales td.tot-val { text-align:right; font-weight:700; color:#111; }
+    table.totales tr.total-final td { background:#000; color:#fff; font-size:12px; font-weight:900; padding:7px 10px; border-bottom:none; }
+    table.totales tr.total-final td.tot-val { color:#F5C400; font-size:13px; }
 
-    /* ── Total ── */
-    .total-row { background: #F5C400 !important; }
-    .total-row td {
-      font-weight: 900; font-size: 14px; color: #111;
-      border-top: 2px solid #333; border-bottom: 2px solid #333;
-    }
-    .total-row td.total-label { text-align: right; text-transform: uppercase; letter-spacing: 1px; }
-    .total-row td.total-valor { text-align: right; font-size: 15px; }
+    /* ── Pie ── */
+    .pie { text-align:center; font-size:9px; color:#888; margin-top:10px; }
 
-    .notas { margin-top: 16px; font-size: 11px; color: #6b7280; }
-    @media print { .page { padding: 12px; } body { background: #fff; } }
+    @media print { body { margin:0; } .page { padding:12px; } }
+    @page { margin:0; size:A4; }
+    html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   </style>
 </head>
 <body>
 <div class="page">
 
-  <!-- Header -->
+  <!-- ═══ CABECERA ═══ -->
   <div class="header">
     <div class="header-left">
-      <div class="empresa-nombre">Distribuidora RC</div>
+      <div class="logo-box">
+        <div class="logo-letters">RC</div>
+        <div>
+          <div class="empresa-nombre">Distribuidora RC</div>
+          <div class="empresa-sub">Materiales de construcción</div>
+        </div>
+      </div>
       <div class="empresa-info">
-        <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br>
+        <strong>DIRECCIÓN:</strong> Chimbacalle, Av. Napo y Salcedo<br>
         <strong>TELÉFONO:</strong> 0998024883 – 0984666022
       </div>
     </div>
     <div class="header-right">
-      <div class="doc-tipo">${tipo}</div>
-      <div class="doc-num">N° ${numero}</div>
-      <div class="doc-fecha">${fecha}</div>
+      <div class="doc-tipo-label">${tipo}</div>
+      <div class="campo-row">
+        <span class="campo-label">No:</span>
+        <span class="campo-valor num">${numero}</span>
+      </div>
+      <div class="campo-row">
+        <span class="campo-label">Fecha de emisión:</span>
+        <span class="campo-valor">${fecha}</span>
+      </div>
     </div>
   </div>
 
-  <!-- Cliente -->
-  <div class="cliente-row">
-    <span>CLIENTE: <strong>${cliente}</strong></span>
-    ${notas ? `<span>NOTAS: <strong>${notas}</strong></span>` : ''}
+  <!-- ═══ DATOS CLIENTE ═══ -->
+  <div class="cliente-section">
+    <div class="cliente-grid">
+      <div class="campo-horiz">
+        <span class="lbl">CLIENTE:</span>
+        <span class="val">${cliente || 'Consumidor Final'}</span>
+      </div>
+      <div class="campo-horiz">
+        <span class="lbl">FECHA:</span>
+        <span class="val">${fecha}</span>
+      </div>
+      ${notas ? `
+      <div class="campo-horiz" style="grid-column:1/-1">
+        <span class="lbl">OBSERVACIÓN:</span>
+        <span class="val">${notas}</span>
+      </div>` : ''}
+    </div>
   </div>
 
-  <!-- Tabla -->
-  <table>
-    <thead>
-      <tr>
-        <th style="width:60px">CANT.</th>
-        <th>DESCRIPCIÓN</th>
-        <th class="right" style="width:100px">V. UNITARIO</th>
-        <th class="right" style="width:90px">IVA %</th>
-        <th class="right" style="width:100px">V. TOTAL</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${filas.map(f => `
+  <!-- ═══ TABLA PRODUCTOS ═══ -->
+  <div class="tabla-wrap">
+    <table class="productos">
+      <thead>
         <tr>
-          <td class="right">${parseFloat(f.cantidad)}</td>
-          <td>${f.descripcion}</td>
-          <td class="right">$${parseFloat(f.precio).toFixed(2)}</td>
-          <td class="right">${parseFloat(f.iva || 0)}%</td>
-          <td class="right">$${(parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva) || 0) / 100)).toFixed(2)}</td>
+          <th style="width:60px">CANT.</th>
+          <th>DESCRIPCIÓN</th>
+          <th class="r" style="width:80px">DETALLES</th>
+          <th class="r" style="width:75px">PRECIO U</th>
+          <th class="r" style="width:55px">DESC.</th>
+          <th class="r" style="width:80px">TOTAL</th>
         </tr>
-      `).join('')}
-      <!-- Filas vacías de relleno visual -->
-      ${Array.from({ length: Math.max(0, 10 - filas.length) }).map(() => `
-        <tr class="fila-vacia">
-          <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
-          <td class="right">0,00</td>
-        </tr>
-      `).join('')}
-      <!-- Subtotal si hay IVA -->
-      ${totalIva > 0 ? `
-        <tr>
-          <td colspan="3"></td>
-          <td style="text-align:right; font-weight:600; color:#6b7280;">Subtotal:</td>
-          <td class="right">$${subtotalBase.toFixed(2)}</td>
-        </tr>
-        <tr>
-          <td colspan="3"></td>
-          <td style="text-align:right; font-weight:600; color:#6b7280;">IVA:</td>
-          <td class="right">$${totalIva.toFixed(2)}</td>
-        </tr>
-      ` : ''}
-      <!-- Total final -->
-      <tr class="total-row">
-        <td colspan="4" class="total-label">TOTAL</td>
-        <td class="right total-valor">$${total.toFixed(2)}</td>
-      </tr>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        ${filas.map(f => {
+          const totalFila = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
+          const ivaStr = parseFloat(f.iva) > 0 ? `IVA ${parseFloat(f.iva)}%` : '';
+          return `<tr>
+            <td class="c">${parseFloat(f.cantidad)}</td>
+            <td>${f.descripcion}</td>
+            <td class="r" style="font-size:9px;color:#666;">${ivaStr}</td>
+            <td class="r">${parseFloat(f.precio).toFixed(2)}</td>
+            <td class="r">0.00</td>
+            <td class="r">${totalFila.toFixed(2)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>
 
+  <!-- ═══ BLOQUE INFERIOR: INFO + TOTALES ═══ -->
+  <div class="bottom-section">
+    <div class="info-adicional">
+      <div class="ia-titulo">Información adicional</div>
+      <div class="ia-row"><span class="ia-lbl">TIPO DE DOC.:</span><span>${tipo}</span></div>
+      <div class="ia-row"><span class="ia-lbl">FORMA PAGO:</span><span>EFECTIVO / TRANSFERENCIA</span></div>
+      ${notas ? `<div class="ia-row"><span class="ia-lbl">NOTA:</span><span>${notas}</span></div>` : ''}
+    </div>
+    <div class="totales-box">
+      <table class="totales">
+        ${subtotal15 > 0 ? `<tr><td class="tot-lbl">SUBTOTAL IVA ${ivaLabel}</td><td class="tot-val">${subtotal15.toFixed(2)}</td></tr>` : ''}
+        <tr><td class="tot-lbl">SUBTOTAL 0%</td><td class="tot-val">${subtotal0.toFixed(2)}</td></tr>
+        <tr><td class="tot-lbl">SUBTOTAL SIN IMPUESTO</td><td class="tot-val">${subtotalBase.toFixed(2)}</td></tr>
+        <tr><td class="tot-lbl">DESCUENTO</td><td class="tot-val">0.00</td></tr>
+        ${totalIva > 0 ? `<tr><td class="tot-lbl">IVA ${ivaLabel}</td><td class="tot-val">${totalIva.toFixed(2)}</td></tr>` : ''}
+        <tr class="total-final"><td class="tot-lbl">TOTAL</td><td class="tot-val">$${total.toFixed(2)}</td></tr>
+      </table>
+    </div>
+  </div>
 </div>
 </body>
-</html>
-`;
+</html>`;
+};
