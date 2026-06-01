@@ -6,12 +6,23 @@ CREATE TABLE usuarios (
     username    VARCHAR(50)  NOT NULL UNIQUE,
     password    VARCHAR(255) NOT NULL,
     rol         VARCHAR(20)  NOT NULL CHECK (rol IN ('admin', 'bodeguero')),
+    email       VARCHAR(150),
     activo      BOOLEAN      NOT NULL DEFAULT TRUE,
     creado_en   TIMESTAMP    NOT NULL DEFAULT NOW()
 );
 
 INSERT INTO usuarios (nombre, username, password, rol)
 VALUES ('Administrador', 'admin', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+
+-- Tokens temporales para recuperación de contraseña (expiran en 15 minutos)
+CREATE TABLE password_reset_tokens (
+    id          SERIAL PRIMARY KEY,
+    usuario_id  INTEGER      NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    token       VARCHAR(6)   NOT NULL,
+    expira_en   TIMESTAMP    NOT NULL DEFAULT (NOW() + INTERVAL '15 minutes'),
+    usado       BOOLEAN      NOT NULL DEFAULT FALSE,
+    creado_en   TIMESTAMP    NOT NULL DEFAULT NOW()
+);
 
 CREATE TABLE proveedores (
     id          SERIAL PRIMARY KEY,
@@ -141,11 +152,12 @@ CREATE TABLE movimiento_stock (
     creado_en       TIMESTAMP      NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_productos_codigo    ON productos(codigo);
-CREATE INDEX idx_documentos_tipo     ON documentos(tipo);
-CREATE INDEX idx_documentos_fecha    ON documentos(fecha);
-CREATE INDEX idx_movimiento_producto ON movimiento_stock(producto_id);
-CREATE INDEX idx_compras_fecha       ON compras(fecha);
+CREATE INDEX idx_productos_codigo      ON productos(codigo);
+CREATE INDEX idx_documentos_tipo       ON documentos(tipo);
+CREATE INDEX idx_documentos_fecha      ON documentos(fecha);
+CREATE INDEX idx_movimiento_producto   ON movimiento_stock(producto_id);
+CREATE INDEX idx_compras_fecha         ON compras(fecha);
+CREATE INDEX idx_reset_tokens_usuario  ON password_reset_tokens(usuario_id);
 
 CREATE OR REPLACE FUNCTION actualizar_timestamp()
 RETURNS TRIGGER AS $$

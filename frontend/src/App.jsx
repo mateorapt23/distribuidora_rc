@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Auth/Login';
+import RecuperarPassword from './pages/Auth/RecuperarPassword';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Productos from './pages/Productos/Productos';
@@ -22,41 +23,28 @@ const RutaProtegida = ({ children }) => {
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="/login"               element={<Login />} />
+      <Route path="/recuperar-password"  element={<RecuperarPassword />} />
       <Route path="/dashboard" element={
-        <RutaProtegida>
-          <Dashboard />
-        </RutaProtegida>
+        <RutaProtegida><Dashboard /></RutaProtegida>
       } />
       <Route path="/productos" element={
-        <RutaProtegida>
-          <Productos />
-        </RutaProtegida>
+        <RutaProtegida><Productos /></RutaProtegida>
       } />
       <Route path="/documentos" element={
-        <RutaProtegida>
-          <Documentos />
-        </RutaProtegida>
+        <RutaProtegida><Documentos /></RutaProtegida>
       } />
       <Route path="/compras" element={
-        <RutaProtegida>
-          <Compras />
-        </RutaProtegida>
+        <RutaProtegida><Compras /></RutaProtegida>
       } />
       <Route path="/facturas-ef" element={
-        <RutaProtegida>
-          <FacturasEfacilito />
-        </RutaProtegida>
+        <RutaProtegida><FacturasEfacilito /></RutaProtegida>
       } />
       <Route path="/reportes" element={
-        <RutaProtegida>
-          <Reportes />
-        </RutaProtegida>
+        <RutaProtegida><Reportes /></RutaProtegida>
       } />
       <Route path="/usuarios" element={
-        <RutaProtegida>
-          <Usuarios />
-        </RutaProtegida>
+        <RutaProtegida><Usuarios /></RutaProtegida>
       } />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

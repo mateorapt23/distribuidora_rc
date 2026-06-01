@@ -4,7 +4,7 @@ const upload  = multer({ dest: 'uploads/' });
 
 const { verificarToken, soloAdmin } = require('../middleware/auth');
 
-const { login, perfil } = require('../controllers/authController');
+const { login, perfil, solicitarRecuperacion, verificarCodigo, nuevaPassword } = require('../controllers/authController');
 const { listar: listarProd, obtener: obtenerProd, crear: crearProd, actualizar: actualizarProd, eliminar: eliminarProd, ajusteStock, importarExcel, exportarExcel } = require('../controllers/productosController');
 const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: actualizarDoc, convertirARecibo, eliminar: eliminarDoc } = require('../controllers/documentosController');
 const { listar: listarComp, obtener: obtenerComp, crear: crearComp, eliminar: eliminarComp } = require('../controllers/comprasController');
@@ -15,8 +15,12 @@ const { generarPDF, generarCaptura } = require('../controllers/pdfController');
 
 // ── AUTH ──────────────────────────────────────────────────
 const authRouter = express.Router();
-authRouter.post('/login', login);
-authRouter.get('/perfil', verificarToken, perfil);
+authRouter.post('/login',             login);
+authRouter.get('/perfil',             verificarToken, perfil);
+// Recuperación de contraseña (rutas públicas, sin token)
+authRouter.post('/recuperar',         solicitarRecuperacion);
+authRouter.post('/verificar-codigo',  verificarCodigo);
+authRouter.post('/nueva-password',    nuevaPassword);
 
 // ── PRODUCTOS ─────────────────────────────────────────────
 const productosRouter = express.Router();

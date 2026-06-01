@@ -10,28 +10,29 @@ const C = {
 };
 
 // ── Iconos SVG ────────────────────────────────────────────────
-const IcoPlus     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const IcoEdit     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-const IcoTrash    = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>;
-const IcoPause    = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>;
-const IcoPlay     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
-const IcoAdmin    = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>;
-const IcoUser     = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-const IcoSave     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
-const IcoWarn     = () => <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IcoPlus  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+const IcoEdit  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+const IcoTrash = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>;
+const IcoPause = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>;
+const IcoPlay  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+const IcoAdmin = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>;
+const IcoUser  = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const IcoSave  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
+const IcoWarn  = () => <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IcoMail  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>;
 
-const VACIO = { nombre: '', username: '', password: '', rol: 'bodeguero' };
+const VACIO = { nombre: '', username: '', password: '', rol: 'bodeguero', email: '' };
 
 export default function Usuarios() {
   const { usuario: usuarioActual } = useAuth();
 
-  const [usuarios, setUsuarios]             = useState([]);
-  const [cargando, setCargando]             = useState(true);
-  const [modalAbierto, setModalAbierto]     = useState(false);
-  const [editando, setEditando]             = useState(null);
-  const [form, setForm]                     = useState(VACIO);
-  const [guardando, setGuardando]           = useState(false);
-  const [error, setError]                   = useState('');
+  const [usuarios, setUsuarios]               = useState([]);
+  const [cargando, setCargando]               = useState(true);
+  const [modalAbierto, setModalAbierto]       = useState(false);
+  const [editando, setEditando]               = useState(null);
+  const [form, setForm]                       = useState(VACIO);
+  const [guardando, setGuardando]             = useState(false);
+  const [error, setError]                     = useState('');
   const [confirmEliminar, setConfirmEliminar] = useState(null);
 
   const cargar = useCallback(async () => {
@@ -57,7 +58,7 @@ export default function Usuarios() {
 
   const abrirEditar = (u) => {
     setEditando(u.id);
-    setForm({ nombre: u.nombre, username: u.username, password: '', rol: u.rol });
+    setForm({ nombre: u.nombre, username: u.username, password: '', rol: u.rol, email: u.email || '' });
     setError('');
     setModalAbierto(true);
   };
@@ -71,11 +72,11 @@ export default function Usuarios() {
     setError('');
     try {
       if (editando) {
-        const payload = { nombre: form.nombre, rol: form.rol };
+        const payload = { nombre: form.nombre, rol: form.rol, email: form.email || null };
         if (form.password) payload.password = form.password;
         await api.put(`/usuarios/${editando}`, payload);
       } else {
-        await api.post('/usuarios', form);
+        await api.post('/usuarios', { ...form, email: form.email || null });
       }
       setModalAbierto(false);
       cargar();
@@ -115,12 +116,8 @@ export default function Usuarios() {
         <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>
-            Usuarios
-          </div>
-          <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
-            Gestión de acceso al sistema
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>Usuarios</div>
+          <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>Gestión de acceso al sistema</div>
         </div>
         <button onClick={abrirNuevo}
           style={{ display: 'flex', alignItems: 'center', gap: 7,
@@ -145,8 +142,7 @@ export default function Usuarios() {
                 background: C.card,
                 border: `1px solid ${u.activo ? C.border : C.rojo + '44'}`,
                 borderTop: `3px solid ${u.rol === 'admin' ? C.amarillo : C.azul}`,
-                borderRadius: 12,
-                padding: 20,
+                borderRadius: 12, padding: 20,
                 opacity: u.activo ? 1 : 0.65,
                 boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
                 transition: 'box-shadow .15s',
@@ -172,10 +168,20 @@ export default function Usuarios() {
                     <div style={{ color: C.textDim, fontSize: 12, fontFamily: 'monospace', marginTop: 2 }}>
                       @{u.username}
                     </div>
+                    {/* Email en la card */}
+                    {u.email && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5,
+                        color: C.textDim, fontSize: 11, marginTop: 3 }}>
+                        <IcoMail />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u.email}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <span style={{
                     fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 5,
-                    letterSpacing: 0.8, textTransform: 'uppercase',
+                    letterSpacing: 0.8, textTransform: 'uppercase', alignSelf: 'flex-start',
                     background: u.rol === 'admin' ? '#fef9ec' : '#eff6ff',
                     color: u.rol === 'admin' ? C.amarillo : C.azul,
                     border: `1px solid ${u.rol === 'admin' ? C.amarillo + '44' : C.azul + '44'}`,
@@ -184,15 +190,22 @@ export default function Usuarios() {
                   </span>
                 </div>
 
+                {/* Aviso si no tiene email */}
+                {!u.email && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a',
+                    borderRadius: 7, padding: '7px 11px', fontSize: 11,
+                    color: '#92400e', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <IcoMail /> Sin email — no podrá recuperar contraseña
+                  </div>
+                )}
+
                 {/* Estado + fecha */}
                 <div style={{ display: 'flex', justifyContent: 'space-between',
                   alignItems: 'center', marginBottom: 16,
                   paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{
-                      width: 7, height: 7, borderRadius: '50%',
-                      background: u.activo ? C.verde : C.rojo,
-                    }} />
+                    <div style={{ width: 7, height: 7, borderRadius: '50%',
+                      background: u.activo ? C.verde : C.rojo }} />
                     <span style={{ color: u.activo ? C.verde : C.rojo, fontSize: 12, fontWeight: 600 }}>
                       {u.activo ? 'Activo' : 'Inactivo'}
                     </span>
@@ -204,9 +217,7 @@ export default function Usuarios() {
 
                 {/* Acciones */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <BtnSm color={C.azul} onClick={() => abrirEditar(u)} icon={<IcoEdit />}>
-                    Editar
-                  </BtnSm>
+                  <BtnSm color={C.azul} onClick={() => abrirEditar(u)} icon={<IcoEdit />}>Editar</BtnSm>
                   {u.id !== usuarioActual.id && (
                     <BtnSm
                       color={u.activo ? C.amarillo : C.verde}
@@ -216,9 +227,7 @@ export default function Usuarios() {
                     </BtnSm>
                   )}
                   {u.id !== usuarioActual.id && (
-                    <BtnSm color={C.rojo} onClick={() => setConfirmEliminar(u)} icon={<IcoTrash />}>
-                      Eliminar
-                    </BtnSm>
+                    <BtnSm color={C.rojo} onClick={() => setConfirmEliminar(u)} icon={<IcoTrash />}>Eliminar</BtnSm>
                   )}
                 </div>
               </div>
@@ -275,6 +284,11 @@ export default function Usuarios() {
                   <option value="bodeguero">Bodeguero</option>
                   <option value="admin">Administrador</option>
                 </select>
+              </Campo>
+              <Campo label="Email (para recuperar contraseña)">
+                <Input type="email" value={form.email}
+                  onChange={v => setForm({ ...form, email: v })}
+                  placeholder="correo@ejemplo.com" />
               </Campo>
 
               {/* Info permisos */}
