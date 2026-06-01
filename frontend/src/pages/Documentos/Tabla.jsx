@@ -28,6 +28,10 @@ const filaVacia = () => ({
 
 export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [cliente, setCliente]           = useState('');
+  const [sugerenciasCliente, setSugerenciasCliente] = useState([]);
+  const [clienteActivo, setClienteActivo]           = useState(false);
+  const clienteRef                                  = useRef(null);
+  const clienteTimeout                              = useRef(null);
   const [fecha, setFecha]               = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotas]               = useState('');
   const [filas, setFilas]               = useState([filaVacia()]);
@@ -47,6 +51,24 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const tablaRef = useRef(null);
   const [sugerencias, setSugerencias]   = useState([]);
   const [filaActiva, setFilaActiva]     = useState(null);
+
+  // Buscar clientes para autocomplete
+  const buscarClientes = async (q) => {
+    if (!q || q.trim().length < 1) { setSugerenciasCliente([]); return; }
+    clearTimeout(clienteTimeout.current);
+    clienteTimeout.current = setTimeout(async () => {
+      try {
+        const { data } = await api.get(`/clientes/buscar?q=${encodeURIComponent(q)}`);
+        setSugerenciasCliente(data);
+      } catch { setSugerenciasCliente([]); }
+    }, 250);
+  };
+
+  const seleccionarCliente = (c) => {
+    setCliente(c.nombre);
+    setSugerenciasCliente([]);
+    setClienteActivo(false);
+  };
 
   const autocompleteRef  = useRef(null);
   const dropdownRef      = useRef(null);
@@ -705,12 +727,59 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         {/* Fila cliente */}
         <div style={{ background: '#fef3c7', borderTop: '1px solid #333', borderBottom: '1px solid #aaa',
           padding: '8px 16px', display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 2, minWidth: 180 }}>
+          <div ref={clienteRef} style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 2, minWidth: 180, position: 'relative' }}>
             <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>CLIENTE:</span>
-            <input value={cliente} onChange={e => setCliente(e.target.value)}
+            <input
+              value={cliente}
+              onChange={e => { setCliente(e.target.value); setClienteActivo(true); buscarClientes(e.target.value); }}
+              onFocus={() => { setClienteActivo(true); if (cliente) buscarClientes(cliente); }}
+              onBlur={() => setTimeout(() => { setSugerenciasCliente([]); setClienteActivo(false); }, 180)}
               placeholder="Consumidor Final"
               style={{ ...celdaSt, flex: 1, background: 'transparent', border: '1px solid #d97706',
-                fontWeight: 700, fontSize: 13, color: '#111' }} />
+                fontWeight: 700, fontSize: 13, color: '#111' }}
+            />
+            {clienteActivo && sugerenciasCliente.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0,
+                background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200,
+                maxHeight: 220, overflowY: 'auto', marginTop: 4,
+              }}>
+                {sugerenciasCliente.map(c => {
+                  const tipoColor = {
+                    CEDULA:    { bg: '#dbeafe', color: '#1d4ed8' },
+                    RUC:       { bg: '#d1fae5', color: '#065f46' },
+                    PASAPORTE: { bg: '#ede9fe', color: '#5b21b6' },
+                    OTRO:      { bg: '#f3f4f6', color: '#6b7280' },
+                  }[c.tipo] || { bg: '#f3f4f6', color: '#6b7280' };
+                  return (
+                    <div key={c.id}
+                      onMouseDown={() => seleccionarCliente(c)}
+                      style={{ padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6',
+                        display: 'flex', gap: 10, alignItems: 'center' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fffbeb'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: '#111827' }}>{c.nombre}</div>
+                        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 3, display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span style={{ background: tipoColor.bg, color: tipoColor.color,
+                            fontWeight: 700, fontSize: 10, padding: '1px 7px', borderRadius: 20 }}>
+                            {c.tipo}
+                          </span>
+                          <span style={{ color: '#6b7280' }}>{c.identificacion}</span>
+                          {c.telefono && <span style={{ background: '#fef3c7', color: '#92400e',
+                            fontSize: 10, padding: '1px 7px', borderRadius: 20, fontWeight: 600 }}>
+                            {c.telefono}
+                          </span>}
+                          {c.email && <span style={{ color: '#8a2085', fontSize: 10 }}>{c.email}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 160 }}>
             <span style={{ color: '#6b7280', fontWeight: 700, fontSize: 12, whiteSpace: 'nowrap' }}>FECHA:</span>

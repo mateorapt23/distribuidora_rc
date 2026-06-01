@@ -3,7 +3,10 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 
-const { authRouter, productosRouter, documentosRouter, comprasRouter, usuariosRouter, dashboardRouter, reportesRouter, facturasEfRouter } = require('./routes/index');
+const {
+  authRouter, productosRouter, clientesRouter, documentosRouter,
+  comprasRouter, usuariosRouter, dashboardRouter, reportesRouter, facturasEfRouter,
+} = require('./routes/index');
 
 const app = express();
 
@@ -18,6 +21,7 @@ if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
 
 app.use('/api/auth',        authRouter);
 app.use('/api/productos',   productosRouter);
+app.use('/api/clientes',    clientesRouter);
 app.use('/api/documentos',  documentosRouter);
 app.use('/api/compras',     comprasRouter);
 app.use('/api/usuarios',    usuariosRouter);

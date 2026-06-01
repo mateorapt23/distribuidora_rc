@@ -12,12 +12,21 @@ const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: el
 const { resumen, reporteVentas, productosMasVendidos, movimientos } = require('../controllers/dashboardController');
 const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf } = require('../controllers/facturasEfController');
 const { generarPDF, generarCaptura } = require('../controllers/pdfController');
+const {
+  listar: listarClientes,
+  buscar: buscarClientes,
+  obtener: obtenerCliente,
+  crear: crearCliente,
+  actualizar: actualizarCliente,
+  eliminar: eliminarCliente,
+  importarExcel: importarClientes,
+  exportarExcel: exportarClientes,
+} = require('../controllers/clientesController');
 
 // ── AUTH ──────────────────────────────────────────────────
 const authRouter = express.Router();
 authRouter.post('/login',             login);
 authRouter.get('/perfil',             verificarToken, perfil);
-// Recuperación de contraseña (rutas públicas, sin token)
 authRouter.post('/recuperar',         solicitarRecuperacion);
 authRouter.post('/verificar-codigo',  verificarCodigo);
 authRouter.post('/nueva-password',    nuevaPassword);
@@ -33,6 +42,18 @@ productosRouter.post('/importar',       upload.single('archivo'), importarExcel)
 productosRouter.post('/ajuste-stock',   soloAdmin, ajusteStock);
 productosRouter.put('/:id',             actualizarProd);
 productosRouter.delete('/:id',          soloAdmin, eliminarProd);
+
+// ── CLIENTES ──────────────────────────────────────────────
+const clientesRouter = express.Router();
+clientesRouter.use(verificarToken);
+clientesRouter.get('/buscar',           buscarClientes);        // autocomplete
+clientesRouter.get('/exportar',         exportarClientes);
+clientesRouter.get('/',                 listarClientes);
+clientesRouter.get('/:id',              obtenerCliente);
+clientesRouter.post('/importar',        upload.single('archivo'), importarClientes);
+clientesRouter.post('/',                crearCliente);
+clientesRouter.put('/:id',              actualizarCliente);
+clientesRouter.delete('/:id',           soloAdmin, eliminarCliente);
 
 // ── DOCUMENTOS ────────────────────────────────────────────
 const documentosRouter = express.Router();
@@ -57,9 +78,9 @@ comprasRouter.delete('/:id', soloAdmin, eliminarComp);
 // ── USUARIOS ──────────────────────────────────────────────
 const usuariosRouter = express.Router();
 usuariosRouter.use(verificarToken, soloAdmin);
-usuariosRouter.get('/',      listarUs);
-usuariosRouter.post('/',     crearUs);
-usuariosRouter.put('/:id',   actualizarUs);
+usuariosRouter.get('/',       listarUs);
+usuariosRouter.post('/',      crearUs);
+usuariosRouter.put('/:id',    actualizarUs);
 usuariosRouter.delete('/:id', eliminarUs);
 
 // ── DASHBOARD ─────────────────────────────────────────────
@@ -85,6 +106,7 @@ facturasEfRouter.delete('/:id',     eliminarFacEf);
 module.exports = {
   authRouter,
   productosRouter,
+  clientesRouter,
   documentosRouter,
   comprasRouter,
   usuariosRouter,

@@ -5,6 +5,7 @@ import RecuperarPassword from './pages/Auth/RecuperarPassword';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Productos from './pages/Productos/Productos';
+import Clientes from './pages/Clientes/Clientes';
 import Documentos from './pages/Documentos/Documentos';
 import Compras from './pages/Compras/Compras';
 import FacturasEfacilito from './pages/FacturasEfacilito/FacturasEfacilito';
@@ -30,6 +31,9 @@ function App() {
       } />
       <Route path="/productos" element={
         <RutaProtegida><Productos /></RutaProtegida>
+      } />
+      <Route path="/clientes" element={
+        <RutaProtegida><Clientes /></RutaProtegida>
       } />
       <Route path="/documentos" element={
         <RutaProtegida><Documentos /></RutaProtegida>
