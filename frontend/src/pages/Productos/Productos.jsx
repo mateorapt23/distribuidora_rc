@@ -228,7 +228,7 @@ export default function Productos() {
                   <td style={{ padding: '11px 16px', textAlign: 'right', color: C.textSec }}>${parseFloat(p.pvp2).toFixed(2)}</td>
                   <td style={{ padding: '11px 16px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <BtnSm color={C.azul} onClick={() => abrirEditar(p)} icon={<IcoEdit />}>Editar</BtnSm>
+                      {esAdmin && <BtnSm color={C.azul} onClick={() => abrirEditar(p)} icon={<IcoEdit />}>Editar</BtnSm>}
                       <BtnSm color={C.amarillo} onClick={() => abrirStock(p)} icon={<IcoBox />} darkText>Stock</BtnSm>
                       {esAdmin && <BtnSm color={C.rojo} onClick={() => eliminar(p.id)} icon={<IcoTrash />}>Eliminar</BtnSm>}
                     </div>

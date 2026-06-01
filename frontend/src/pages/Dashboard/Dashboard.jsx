@@ -128,7 +128,44 @@ export default function Dashboard() {
   );
 
   if (error) return (
-    <div style={{ padding: 40, color: C.rojo }}>{error}</div>
+    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: C.card, borderRadius: 24, padding: '52px 44px', maxWidth: 440, width: '100%',
+        textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', border: `1px solid ${C.border}` }}>
+        {/* Icono SVG */}
+        <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+          boxShadow: '0 4px 16px rgba(245,158,11,0.20)' }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.8" strokeLinecap="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        {/* Título */}
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.textPrimary, marginBottom: 10, letterSpacing: -0.3 }}>
+          Acceso restringido
+        </div>
+        {/* Subtítulo */}
+        <div style={{ fontSize: 14, color: C.textSec, lineHeight: 1.7, marginBottom: 6 }}>
+          No tienes permisos para ver el <strong>Dashboard</strong>.
+        </div>
+        <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.7, marginBottom: 28 }}>
+          Esta sección está disponible únicamente para administradores del sistema.
+        </div>
+        {/* Tip inferior */}
+        <div style={{ padding: '14px 18px', background: C.bg, borderRadius: 12,
+          border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+          <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: '#eff6ff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+          </div>
+          <span style={{ fontSize: 12.5, color: C.textSec, lineHeight: 1.6 }}>
+            Usa el menú lateral para acceder a las secciones disponibles para tu rol.
+          </span>
+        </div>
+      </div>
+    </div>
   );
 
   const { resumen, masVendidos, movimientos } = data;

@@ -32,6 +32,44 @@ export default function Compras() {
   const [seccion, setSeccion] = useState('nueva');
   const [refrescar, setRefrescar] = useState(0);
 
+  if (!esAdmin) return (
+    <div style={{ background: C.bgBase, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: '#fff', borderRadius: 24, padding: '52px 44px', maxWidth: 440, width: '100%',
+        textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', border: '1px solid #e5e7eb' }}>
+        <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+          boxShadow: '0 4px 16px rgba(245,158,11,0.20)' }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.8" strokeLinecap="round">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 0 1-8 0"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.textPrimary, marginBottom: 10, letterSpacing: -0.3 }}>
+          Sin acceso a Compras
+        </div>
+        <div style={{ fontSize: 14, color: C.textSec, lineHeight: 1.7, marginBottom: 6 }}>
+          No tienes permisos para registrar ni gestionar <strong>compras a proveedores</strong>.
+        </div>
+        <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.7, marginBottom: 28 }}>
+          Esta sección está disponible únicamente para administradores del sistema.
+        </div>
+        <div style={{ padding: '14px 18px', background: C.bgBase, borderRadius: 12,
+          border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+          <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: '#eff6ff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+          </div>
+          <span style={{ fontSize: 12.5, color: C.textSec, lineHeight: 1.6 }}>
+            Si necesitas registrar una compra, comunícate con el administrador del sistema.
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{ background: C.bgBase, minHeight: '100vh' }}>
 

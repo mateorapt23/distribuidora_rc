@@ -2,6 +2,7 @@ import { useState } from 'react';
 import ReporteVentas from './ReporteVentas';
 import ReporteMovimientos from './ReporteMovimientos';
 import ReporteProductos from './ReporteProductos';
+import { useAuth } from '../../context/AuthContext';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', border: '#e5e7eb',
@@ -14,7 +15,48 @@ const IcoMovimientos = () => <svg width="15" height="15" viewBox="0 0 24 24" fil
 const IcoProductos   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
 
 export default function Reportes() {
+  const { usuario } = useAuth();
+  const esAdmin = usuario?.rol === 'admin';
   const [seccion, setSeccion] = useState('ventas');
+
+  if (!esAdmin) return (
+    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: C.card, borderRadius: 24, padding: '52px 44px', maxWidth: 440, width: '100%',
+        textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', border: `1px solid ${C.border}` }}>
+        <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+          boxShadow: '0 4px 16px rgba(59,130,246,0.15)' }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.8" strokeLinecap="round">
+            <line x1="18" y1="20" x2="18" y2="10"/>
+            <line x1="12" y1="20" x2="12" y2="4"/>
+            <line x1="6"  y1="20" x2="6"  y2="14"/>
+            <line x1="2"  y1="20" x2="22" y2="20"/>
+          </svg>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: C.textPrimary, marginBottom: 10, letterSpacing: -0.3 }}>
+          Sin acceso a Reportes
+        </div>
+        <div style={{ fontSize: 14, color: C.textSec, lineHeight: 1.7, marginBottom: 6 }}>
+          No tienes permisos para consultar los <strong>reportes del sistema</strong>.
+        </div>
+        <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.7, marginBottom: 28 }}>
+          Esta sección está disponible únicamente para administradores del sistema.
+        </div>
+        <div style={{ padding: '14px 18px', background: C.bg, borderRadius: 12,
+          border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+          <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: '#eff6ff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+          </div>
+          <span style={{ fontSize: 12.5, color: C.textSec, lineHeight: 1.6 }}>
+            Si necesitas información de reportes, comunícate con el administrador del sistema.
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 
   const tabs = [
     { key: 'ventas',      label: 'Ventas',                   icon: <IcoVentas /> },

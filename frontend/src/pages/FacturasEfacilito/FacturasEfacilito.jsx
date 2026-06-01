@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import api from '../../api/config';
+import { useAuth } from '../../context/AuthContext';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -73,8 +74,65 @@ const Modal = ({ titulo, onClose, children, maxWidth = 640 }) => (
 
 // ════════════════════════════════════════════════════════════
 export default function FacturasEfacilito() {
+  const { usuario } = useAuth();
+  const esAdmin = usuario?.rol === 'admin';
   const [seccion, setSeccion]     = useState('importar');
   const [refrescar, setRefrescar] = useState(0);
+
+  if (!esAdmin) return (
+    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
+        padding: '0 28px', height: 80, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+        <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
+          background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>Facturas Efacilito</div>
+          <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
+            Importa y consulta el historial de facturas electrónicas
+          </div>
+        </div>
+      </div>
+      {/* Pantalla sin acceso */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ background: '#fff', borderRadius: 24, padding: '52px 44px', maxWidth: 440, width: '100%',
+          textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', border: `1px solid ${C.border}` }}>
+          <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
+            boxShadow: '0 4px 16px rgba(16,185,129,0.15)' }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: C.textPrimary, marginBottom: 10, letterSpacing: -0.3 }}>
+            Sin acceso a Facturas
+          </div>
+          <div style={{ fontSize: 14, color: C.textSec, lineHeight: 1.7, marginBottom: 6 }}>
+            No tienes permisos para importar ni gestionar <strong>facturas electrónicas</strong>.
+          </div>
+          <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.7, marginBottom: 28 }}>
+            Esta sección está disponible únicamente para administradores del sistema.
+          </div>
+          <div style={{ padding: '14px 18px', background: C.bg, borderRadius: 12,
+            border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' }}>
+            <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 8, background: '#eff6ff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+            </div>
+            <span style={{ fontSize: 12.5, color: C.textSec, lineHeight: 1.6 }}>
+              Si necesitas importar facturas, comunícate con el administrador del sistema.
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ background: C.bg, minHeight: '100vh' }}>

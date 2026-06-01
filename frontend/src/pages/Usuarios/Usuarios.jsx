@@ -292,7 +292,7 @@ export default function Usuarios() {
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, color: C.azul }}>
                     <IcoUser />
-                    <span>Puede crear y editar proformas, recibos y compras. No puede eliminar ni ver reportes.</span>
+                    <span>Puede gestionar proformas y recibos, pero no tiene acceso al dashboard, reportes, facturas importadas, ni opciones de eliminación.</span>
                   </div>
                 )}
               </div>
