@@ -152,7 +152,28 @@ CREATE TABLE movimiento_stock (
     creado_en       TIMESTAMP      NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE clientes (
+    id              SERIAL PRIMARY KEY,
+    identificacion  VARCHAR(20)   NOT NULL UNIQUE,
+    tipo            VARCHAR(10)   NOT NULL CHECK (tipo IN ('CEDULA', 'RUC', 'PASAPORTE', 'OTRO')),
+    nombre          VARCHAR(200)  NOT NULL,
+    direccion       VARCHAR(255),
+    telefono        VARCHAR(20),
+    email           VARCHAR(150),
+    activo          BOOLEAN       NOT NULL DEFAULT TRUE,
+    creado_en       TIMESTAMP     NOT NULL DEFAULT NOW(),
+    actualizado_en  TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE documentos ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id);
+
+CREATE TRIGGER trg_clientes_updated
+    BEFORE UPDATE ON clientes
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
+
 CREATE INDEX idx_productos_codigo      ON productos(codigo);
+CREATE INDEX idx_clientes_identificacion ON clientes(identificacion);
+CREATE INDEX idx_clientes_nombre         ON clientes(nombre);
 CREATE INDEX idx_documentos_tipo       ON documentos(tipo);
 CREATE INDEX idx_documentos_fecha      ON documentos(fecha);
 CREATE INDEX idx_movimiento_producto   ON movimiento_stock(producto_id);
