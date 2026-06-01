@@ -133,17 +133,20 @@ export default function Layout({ children }) {
     : 'U';
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb', position: 'relative' }}>
 
       {/* ── Sidebar oscuro ── */}
       <aside
         onClick={() => setOpen(o => !o)}
         style={{
+          position: 'fixed',
+          top: 0, left: 0,
+          height: '100vh',
           width: open ? 232 : 56,
           background: S.bg,
           borderRight: `1px solid ${S.border}`,
           display: 'flex', flexDirection: 'column',
-          flexShrink: 0,
+          zIndex: 100,
           transition: 'width .28s cubic-bezier(.4,0,.2,1)',
           cursor: 'pointer', userSelect: 'none',
         }}
@@ -156,7 +159,7 @@ export default function Layout({ children }) {
 
         {/* Logo */}
         <div style={{
-          padding: open ? '14px 12px 12px' : '12px 0',
+          padding: '14px 12px 12px',
           borderBottom: `1px solid ${S.border}`,
           overflow: 'hidden',
           display: 'flex',
@@ -203,30 +206,28 @@ export default function Layout({ children }) {
           </div>
 
           {/* Subtítulo */}
-          {open && (
-            <div style={{
-              fontSize: 8.5, color: S.label, fontWeight: 500,
-              letterSpacing: '1.1px', textTransform: 'uppercase',
-              whiteSpace: 'nowrap', marginTop: 8, paddingLeft: 2,
-            }}>
-              Materiales de Construcción
-            </div>
-          )}
+          <div style={{
+            fontSize: 8.5, color: S.label, fontWeight: 500,
+            letterSpacing: '1.1px', textTransform: 'uppercase',
+            whiteSpace: 'nowrap', marginTop: 8, paddingLeft: 2,
+            visibility: open ? 'visible' : 'hidden',
+          }}>
+            Materiales de Construcción
+          </div>
         </div>
 
         {/* Nav */}
         <div style={{ flex: 1, padding: '10px 0', overflow: 'hidden' }}>
           {NAV_SECTIONS.map(section => (
             <div key={section.label} style={{ marginBottom: 4 }}>
-              {open && (
-                <div style={{
-                  fontSize: 9, fontWeight: 700, color: S.label,
-                  letterSpacing: '1.2px', textTransform: 'uppercase',
-                  padding: '8px 16px 4px', whiteSpace: 'nowrap',
-                }}>
-                  {section.label}
-                </div>
-              )}
+              <div style={{
+                fontSize: 9, fontWeight: 700, color: S.label,
+                letterSpacing: '1.2px', textTransform: 'uppercase',
+                padding: '8px 16px 4px', whiteSpace: 'nowrap',
+                visibility: open ? 'visible' : 'hidden',
+              }}>
+                {section.label}
+              </div>
               {section.items.map(item => (
                 <NavItem key={item.to} item={item} open={open} />
               ))}
@@ -237,15 +238,14 @@ export default function Layout({ children }) {
 
           {usuario?.rol === 'admin' && (
             <div>
-              {open && (
-                <div style={{
-                  fontSize: 9, fontWeight: 700, color: S.label,
-                  letterSpacing: '1.2px', textTransform: 'uppercase',
-                  padding: '8px 16px 4px', whiteSpace: 'nowrap',
-                }}>
-                  {NAV_ADMIN.label}
-                </div>
-              )}
+              <div style={{
+                fontSize: 9, fontWeight: 700, color: S.label,
+                letterSpacing: '1.2px', textTransform: 'uppercase',
+                padding: '8px 16px 4px', whiteSpace: 'nowrap',
+                visibility: open ? 'visible' : 'hidden',
+              }}>
+                {NAV_ADMIN.label}
+              </div>
               {NAV_ADMIN.items.map(item => (
                 <NavItem key={item.to} item={item} open={open} />
               ))}
@@ -299,7 +299,13 @@ export default function Layout({ children }) {
       </aside>
 
       {/* ── Contenido ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <div style={{
+        marginLeft: open ? 232 : 56,
+        flex: 1,
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden', minWidth: 0,
+        transition: 'margin-left .28s cubic-bezier(.4,0,.2,1)',
+      }}>
 
         {/* Topbar */}
         <div style={{
