@@ -122,7 +122,7 @@ export default function Guardados({ onVerEnTabla }) {
           iva: parseFloat(d.iva) || 0,
         })),
       });
-      alert(`✅ Convertido a Recibo ${data.numero}`);
+      alert(`✅ Convertido a Nota de entrega ${data.numero}`);
       setModalConvertir(false); cargar();
     } catch (err) { alert(err.response?.data?.error || 'Error al convertir'); }
     finally { setGuardando(false); }
@@ -141,8 +141,9 @@ export default function Guardados({ onVerEnTabla }) {
       const base = parseFloat(f.cantidad) * parseFloat(f.precio);
       return s + base * ((parseFloat(f.iva) || 0) / 100);
     }, 0);
+    const tipoDisplay = doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase();
     const html = generarHTML({
-      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      tipo: tipoDisplay, numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
@@ -166,10 +167,9 @@ export default function Guardados({ onVerEnTabla }) {
       return s + base * ((parseFloat(f.iva)||0) / 100);
     }, 0);
 
-    // Inyectamos el CSS de impresión directamente en el HTML existente para que
-    // el navegador genere el PDF con calidad perfecta, igual a la vista previa.
+    const tipoDisplay = doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase();
     const htmlBase = generarHTML({
-      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      tipo: tipoDisplay, numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0,10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
@@ -218,7 +218,7 @@ export default function Guardados({ onVerEnTabla }) {
       return s + base * ((parseFloat(f.iva) || 0) / 100);
     }, 0);
     const html   = generarHTMLTermica({
-      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      tipo: doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
@@ -266,7 +266,7 @@ export default function Guardados({ onVerEnTabla }) {
       return s + base * ((parseFloat(f.iva) || 0) / 100);
     }, 0);
     const params = {
-      tipo: doc.tipo.toUpperCase(), numero: doc.numero,
+      tipo: doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
@@ -368,7 +368,7 @@ export default function Guardados({ onVerEnTabla }) {
           style={{ ...inputSt, width: 160 }}>
           <option value="">Todos los tipos</option>
           <option value="proforma">Proformas</option>
-          <option value="recibo">Recibos</option>
+          <option value="recibo">Notas de entrega</option>
         </select>
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
           padding: '9px 16px', fontSize: 13, color: C.textDim, fontWeight: 500 }}>
@@ -400,7 +400,7 @@ export default function Guardados({ onVerEnTabla }) {
               <tr><td colSpan={7} style={{ padding: 60, textAlign: 'center' }}>
                 <div style={{ color: C.textDim, fontSize: 14 }}>No hay documentos guardados</div>
                 <div style={{ color: C.textDim, fontSize: 12, marginTop: 6 }}>
-                  Crea una proforma o recibo desde la pestaña Nueva
+                  Crea una proforma o nota de entrega desde la pestaña Nueva
                 </div>
               </td></tr>
             ) : documentos.map((doc, i) => (
@@ -417,7 +417,7 @@ export default function Guardados({ onVerEnTabla }) {
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 20,
                     background: doc.tipo === 'recibo' ? '#f0fdf4' : '#eff6ff',
                     color: doc.tipo === 'recibo' ? C.verde : C.azul }}>
-                    {doc.tipo === 'recibo' ? 'Recibo' : 'Proforma'}
+                    {doc.tipo === 'recibo' ? 'Nota de entrega' : 'Proforma'}
                   </span>
                 </td>
                 <td style={{ padding: '12px 16px', color: C.textSec, fontWeight: 500 }}>
@@ -443,7 +443,7 @@ export default function Guardados({ onVerEnTabla }) {
                     </BtnSm>
                     {doc.tipo === 'proforma' && (
                       <BtnSm color={C.verde} outline onClick={() => abrirConvertir(doc)} icon={<IcoConvert />}>
-                        Recibo
+                        Nota de entrega
                       </BtnSm>
                     )}
                     {esAdmin && (
@@ -476,9 +476,9 @@ export default function Guardados({ onVerEnTabla }) {
 
       {/* ── Modal VER ── */}
       {modalVer && docSeleccionado && (
-        <Modal titulo={`${docSeleccionado.tipo === 'recibo' ? 'Recibo' : 'Proforma'} — ${docSeleccionado.numero}`}
+        <Modal titulo={`${docSeleccionado.tipo === 'recibo' ? 'Nota de entrega' : 'Proforma'} — ${docSeleccionado.numero}`}
           onClose={() => setModalVer(false)} maxWidth={720}
-          badge={{ label: docSeleccionado.tipo === 'recibo' ? 'Recibo' : 'Proforma',
+          badge={{ label: docSeleccionado.tipo === 'recibo' ? 'Nota de entrega' : 'Proforma',
             color: docSeleccionado.tipo === 'recibo' ? C.verde : C.azul }}>
           <InfoDoc doc={docSeleccionado} />
           {cargandoDetalle ? <Cargando /> : <TablaDetalle filas={detalle} />}
@@ -581,7 +581,7 @@ export default function Guardados({ onVerEnTabla }) {
 
       {/* ── Modal CONVERTIR ── */}
       {modalConvertir && docSeleccionado && (
-        <Modal titulo={`Convertir a Recibo — ${docSeleccionado.numero}`}
+        <Modal titulo={`Convertir a Nota de entrega — ${docSeleccionado.numero}`}
           onClose={() => setModalConvertir(false)} maxWidth={720}>
           <div style={{ background: '#fffbeb', border: '1px solid #fde68a',
             borderRadius: 10, padding: '12px 16px', marginBottom: 20,
@@ -605,7 +605,7 @@ export default function Guardados({ onVerEnTabla }) {
 
       {/* ── Modal Vista Previa PDF ── */}
       {modalPDF && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60,
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999,
           display: 'flex', flexDirection: 'column', background: '#525659' }}>
           <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             {pdfGenerando && (
@@ -777,7 +777,7 @@ const TotRow = ({ label, valor }) => (
 
 const Modal = ({ titulo, onClose, children, maxWidth = 600, badge }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
     <div style={{ background: '#fff', borderRadius: 18, padding: 28,
       width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto',
       boxShadow: '0 24px 64px rgba(0,0,0,0.15)' }}>
@@ -957,9 +957,9 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
   <div class="header">
     <div class="header-left">
       <div class="logo-box">
-        <div class="logo-letters">RC</div>
+        <div class="logo-letters">FC</div>
         <div>
-          <div class="empresa-nombre">Distribuidora RC</div>
+          <div class="empresa-nombre">Ferreteria Carrión</div>
           <div class="empresa-sub">Materiales de construcción</div>
         </div>
       </div>

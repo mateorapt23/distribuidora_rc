@@ -50,7 +50,7 @@ export default function Documentos() {
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
         <div>
           <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>
-            Proformas / Recibos
+            Proformas / Notas de entrega
           </div>
           <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
             Gestión de documentos de venta

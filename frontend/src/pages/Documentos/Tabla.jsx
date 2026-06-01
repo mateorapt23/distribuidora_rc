@@ -249,7 +249,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
   const imprimirTermica = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para imprimir'); return; }
-    const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const tipoRaw    = (idEdicion ? tipoEdicion : tipoNuevo);
+    const tipoDoc    = tipoRaw === 'recibo' ? 'NOTA DE ENTREGA' : tipoRaw.toUpperCase();
     const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
     const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}-termica.pdf`;
     const html = generarHTMLTermica({
@@ -280,7 +281,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   };
 
   const obtenerDatosHTML = (opcion = 1) => {
-    const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const tipoRaw    = (idEdicion ? tipoEdicion : tipoNuevo);
+    const tipoDoc    = tipoRaw === 'recibo' ? 'NOTA DE ENTREGA' : tipoRaw.toUpperCase();
     const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
     const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}.pdf`;
     let html;
@@ -599,7 +601,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const tomarCaptura = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para capturar'); return; }
 
-    const tipoDoc    = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const tipoRaw    = (idEdicion ? tipoEdicion : tipoNuevo);
+    const tipoDoc    = tipoRaw === 'recibo' ? 'NOTA DE ENTREGA' : tipoRaw.toUpperCase();
     const numeroDoc  = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
     const nombre     = `${(idEdicion ? tipoEdicion : tipoNuevo)}-${numeroDoc}-${fecha}.png`;
     const html       = generarHTMLCaptura({
@@ -654,7 +657,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
           <span style={{ color: '#d97706', marginTop: 1, flexShrink: 0 }}><IcoWarn /></span>
           <span>
             <strong>Producto manual.</strong> Las filas con <span style={{ color: '#d97706' }}>⚠</span> no
-            están en el inventario — <strong>no se descontará stock</strong> al guardar como recibo.
+            están en el inventario — <strong>no se descontará stock</strong> al guardar como nota de entrega.
           </span>
         </div>
       )}
@@ -668,7 +671,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
           <div style={{ background: '#F5C400', flex: 1, padding: '14px 20px',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ fontSize: 22, fontWeight: 900, color: '#111', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Distribuidora RC
+              Ferreteria Carrión
             </div>
             <div style={{ fontSize: 11, color: '#333', marginTop: 5, lineHeight: 1.8 }}>
               <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
@@ -683,7 +686,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               <>
                 <div style={{ fontSize: 18, fontWeight: 900, color: tipoEdicion === 'recibo' ? '#6ee7b7' : '#93c5fd',
                   textTransform: 'uppercase', letterSpacing: 1 }}>
-                  {tipoEdicion === 'recibo' ? 'RECIBO' : 'PROFORMA'}
+                  {tipoEdicion === 'recibo' ? 'NOTA DE ENTREGA' : 'PROFORMA'}
                 </div>
                 <div style={{ fontSize: 12, color: '#bfdbfe', fontWeight: 700, letterSpacing: 0.5 }}>
                   {numeroEdicion}
@@ -697,7 +700,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                   border: '1px solid #374151' }}>
                   {[
                     { key: 'proforma', label: 'PROFORMA', color: '#93c5fd' },
-                    { key: 'recibo',   label: 'RECIBO',   color: '#6ee7b7' },
+                    { key: 'recibo',   label: 'NOTA DE ENTREGA',   color: '#6ee7b7' },
                   ].map(opt => (
                     <button key={opt.key}
                       onClick={() => setTipoNuevo(opt.key)}
@@ -1128,7 +1131,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
       {/* Modal Vista Previa PDF — visor nativo con selector de formato */}
       {modalPDF && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60,
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999,
           display: 'flex', flexDirection: 'column', background: '#525659' }}>
 
           {/* Iframe visor PDF nativo */}
@@ -1218,7 +1221,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       {/* Modal confirmar guardar */}
       {modalGuardar && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
           <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px',
             width: '100%', maxWidth: 420, textAlign: 'center',
             boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
@@ -1231,15 +1234,15 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               <IcoSave />
             </div>
             <h2 style={{ color: C.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-              {idEdicion ? 'Guardar cambios' : `Guardar ${tipoNuevo === 'recibo' ? 'Recibo' : 'Proforma'}`}
+              {idEdicion ? 'Guardar cambios' : `Guardar ${tipoNuevo === 'recibo' ? 'Nota de entrega' : 'Proforma'}`}
             </h2>
             <p style={{ color: C.textDim, fontSize: 13, marginBottom: 28, lineHeight: 1.6 }}>
               {idEdicion
                 ? <>Se actualizará el <strong style={{ color: tipoEdicion === 'recibo' ? C.verde : C.azul }}>
-                    {tipoEdicion === 'recibo' ? 'Recibo' : 'Proforma'}
+                    {tipoEdicion === 'recibo' ? 'Nota de entrega' : 'Proforma'}
                   </strong> existente con los nuevos datos.</>
                 : tipoNuevo === 'recibo'
-                  ? <>Se guardará como <strong style={{ color: C.verde }}>Recibo</strong>. Se descontará stock inmediatamente.</>
+                  ? <>Se guardará como <strong style={{ color: C.verde }}>Nota de entrega</strong>. Se descontará stock inmediatamente.</>
                   : <>Se guardará como <strong style={{ color: C.azul }}>Proforma</strong>. No descuenta stock.</>
               }
             </p>
@@ -1294,15 +1297,15 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
 <div style="font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;">
   <div style="display:flex;align-items:stretch;border:2px solid #333;">
     <div style="background:#F5C400;flex:1;padding:14px 20px;">
-      <div style="font-size:22px;font-weight:900;color:#111;text-transform:uppercase;letter-spacing:0.5px;">Distribuidora RC</div>
+      <div style="font-size:22px;font-weight:900;color:#111;text-transform:uppercase;letter-spacing:0.5px;">Ferreteria Carrión</div>
       <div style="font-size:11px;color:#333;margin-top:5px;line-height:1.8;">
         <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
         <strong>TELÉFONO:</strong> 0998024883 – 0984666022
       </div>
     </div>
     <div style="background:#0D111C;min-width:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 20px;gap:4px;">
-      <div style="font-size:18px;font-weight:900;color:${tipo?.toLowerCase() === 'recibo' ? '#6ee7b7' : '#93c5fd'};text-transform:uppercase;letter-spacing:1px;">${(tipo || 'DOCUMENTO').toUpperCase()}</div>
-      ${numero ? `<div style="font-size:12px;font-weight:700;color:${tipo?.toLowerCase() === 'recibo' ? '#6ee7b7' : '#93c5fd'};letter-spacing:0.5px;">${numero}</div>` : ''}
+      <div style="font-size:18px;font-weight:900;color:${(tipo?.toLowerCase() === 'recibo' || tipo?.toLowerCase() === 'nota de entrega') ? '#6ee7b7' : '#93c5fd'};text-transform:uppercase;letter-spacing:1px;">${(tipo || 'DOCUMENTO').toUpperCase()}</div>
+      ${numero ? `<div style="font-size:12px;font-weight:700;color:${(tipo?.toLowerCase() === 'recibo' || tipo?.toLowerCase() === 'nota de entrega') ? '#6ee7b7' : '#93c5fd'};letter-spacing:0.5px;">${numero}</div>` : ''}
       <div style="font-size:11px;color:#64748b;margin-top:2px;">${fecha}</div>
     </div>
   </div>
@@ -1382,10 +1385,10 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
 
     .header-box { border: 2px solid #000; display: flex; align-items: stretch; }
     .header-left { flex: 1; min-width: 0; padding: 7px 7px 7px 8px; border-right: 2px solid #000; overflow: hidden; }
-    .header-right { width: 68px; min-width: 68px; max-width: 68px; padding: 6px 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; }
-    .empresa-nombre { font-size: 11pt; font-weight: 900; text-transform: uppercase; color: #000; white-space: nowrap; }
+    .header-right { width: 76px; min-width: 76px; max-width: 76px; padding: 6px 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; }
+    .empresa-nombre { font-size: 8.5pt; font-weight: 900; text-transform: uppercase; color: #000; white-space: normal; word-break: break-word; line-height: 1.2; }
     .empresa-info   { font-size: 6.5pt; margin-top: 4px; line-height: 1.7; color: #000; font-weight: 700; }
-    .doc-tipo  { font-size: 7pt; font-weight: 900; text-transform: uppercase; text-align: center; color: #000; white-space: nowrap; }
+    .doc-tipo  { font-size: 6pt; font-weight: 900; text-transform: uppercase; text-align: center; color: #000; word-break: break-word; line-height: 1.3; }
     .doc-num   { font-size: 6.5pt; font-weight: 900; text-align: center; color: #000; word-break: break-all; }
     .doc-fecha { font-size: 6pt; font-weight: 700; text-align: center; color: #000; }
 
@@ -1420,7 +1423,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
 
   <div class="header-box">
     <div class="header-left">
-      <div class="empresa-nombre">Distribuidora RC</div>
+      <div class="empresa-nombre">Ferreteria Carrión</div>
       <div class="empresa-info">
         Chimbacalle, Av Napo y Salcedo<br>
         Tel: 0998024883 \u2013 0984666022
