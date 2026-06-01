@@ -47,6 +47,7 @@ export default function Guardados({ onVerEnTabla }) {
   const [pdfGenerando, setPdfGenerando]       = useState(false);
   const [pdfOpcion, setPdfOpcion]             = useState(1);
   const [pdfDocActual, setPdfDocActual]       = useState(null);
+  const [pdfEsTermica, setPdfEsTermica]       = useState(false);
   const LIMIT = 20;
 
   const cargar = useCallback(async () => {
@@ -209,28 +210,40 @@ export default function Guardados({ onVerEnTabla }) {
     };
   };
 
-    const imprimirTermica = (doc, detalleImp) => {
+    const imprimirTermica = async (doc, detalleImp) => {
     const filas = detalleImp || detalle;
     const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
     const totalIva     = filas.reduce((s, f) => {
       const base = parseFloat(f.cantidad) * parseFloat(f.precio);
       return s + base * ((parseFloat(f.iva) || 0) / 100);
     }, 0);
-    const html = generarHTMLTermica({
+    const html   = generarHTMLTermica({
       tipo: doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
       subtotalBase, totalIva, total: subtotalBase + totalIva,
     });
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
-    document.body.appendChild(iframe);
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 1000);
+    const nombre = `${doc.tipo.toUpperCase()}-${doc.numero}-${doc.fecha?.slice(0, 10)}-termica.pdf`;
+    setPdfNombre(nombre);
+    setPdfEsTermica(true);
+    setModalPDF(true);
+    setPdfGenerando(true);
+    setPdfBlobUrl(null);
+    try {
+      const res = await api.post(
+        '/documentos/pdf',
+        { html, nombre, size: { width: '80mm' }, margins: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' } },
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      setPdfBlobUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Error al generar PDF térmico');
+      setModalPDF(false);
+    } finally {
+      setPdfGenerando(false);
+    }
   };
 
   const verEnTabla = () => {
@@ -312,6 +325,7 @@ export default function Guardados({ onVerEnTabla }) {
 
   const cerrarModalPDF = () => {
     setModalPDF(false);
+    setPdfEsTermica(false);
     if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
   };
 
@@ -610,54 +624,65 @@ export default function Guardados({ onVerEnTabla }) {
                 title={pdfNombre} />
             )}
           </div>
-          <div style={{ background: '#3c4043', borderTop: '1px solid #5f6368',
+          <div style={{
+            background: '#29292b', borderTop: '1px solid #3c4043',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 16, padding: '10px 24px', flexShrink: 0, flexWrap: 'wrap' }}>
-
-            {/* Selector de formato */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-              background: '#2d2f31', borderRadius: 8, padding: '4px 6px',
-              border: '1px solid #5f6368' }}>
+            gap: 10, padding: '10px 24px', flexShrink: 0, flexWrap: 'wrap',
+          }}>
+            {/* Selector formato en píldora — solo para PDF normal */}
+            {!pdfEsTermica && (
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              background: '#2a2c2e', borderRadius: 20, padding: '3px',
+              border: '1px solid #5f6368', gap: 2,
+            }}>
               <span style={{ color: '#9aa0a6', fontSize: 11, fontWeight: 600,
-                marginRight: 4, whiteSpace: 'nowrap' }}>FORMATO:</span>
-              {[
-                { id: 1, label: 'Formato PDF' },
-                { id: 2, label: 'Tabla' },
-              ].map(op => (
+                padding: '0 10px', whiteSpace: 'nowrap', letterSpacing: 0.4 }}>Formato</span>
+              <div style={{ width: 1, height: 16, background: '#5f6368' }} />
+              {[{ id: 1, label: 'PDF' }, { id: 2, label: 'Tabla' }].map(op => (
                 <button key={op.id}
                   onClick={() => cambiarOpcionPDF(op.id)}
                   disabled={pdfGenerando}
                   style={{
-                    background: pdfOpcion === op.id ? '#1a73e8' : 'transparent',
-                    border: pdfOpcion === op.id ? 'none' : '1px solid #5f6368',
-                    color: pdfOpcion === op.id ? '#fff' : '#bdc1c6',
-                    borderRadius: 6, padding: '6px 14px', fontWeight: 600,
+                    background: pdfOpcion === op.id ? '#8ab4f8' : 'transparent',
+                    border: 'none',
+                    color: pdfOpcion === op.id ? '#202124' : '#9aa0a6',
+                    borderRadius: 16, padding: '5px 16px', fontWeight: 700,
                     fontSize: 12, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
                     transition: 'all .15s', whiteSpace: 'nowrap',
-                    opacity: pdfGenerando ? 0.6 : 1,
+                    opacity: pdfGenerando ? 0.5 : 1,
                   }}>
                   {op.label}
                 </button>
               ))}
             </div>
+            )}
 
+            {/* Descargar PDF */}
             <button onClick={descargarBlobPDF} disabled={pdfGenerando}
-              style={{ background: '#1a73e8', border: 'none', color: '#fff',
-                borderRadius: 6, padding: '10px 24px', fontWeight: 700,
+              style={{
+                background: '#8ab4f8', border: 'none', color: '#202124',
+                borderRadius: 20, padding: '8px 22px', fontWeight: 700,
                 fontSize: 13, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 8,
-                opacity: pdfGenerando ? 0.5 : 1, letterSpacing: 0.5, transition: 'background .15s' }}
-              onMouseEnter={e => { if (!pdfGenerando) e.currentTarget.style.background = '#1557b0'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#1a73e8'; }}>
-              <IcoPDF /> DESCARGAR PDF
+                opacity: pdfGenerando ? 0.5 : 1, transition: 'background .15s',
+              }}
+              onMouseEnter={e => { if (!pdfGenerando) e.currentTarget.style.background = '#aecbfa'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#8ab4f8'; }}>
+              <IcoPDF /> Descargar PDF
             </button>
+
+            {/* Salir */}
             <button onClick={cerrarModalPDF}
-              style={{ background: '#5f6368', border: 'none', color: '#e8eaed',
-                borderRadius: 6, padding: '10px 28px', fontWeight: 700,
-                fontSize: 13, cursor: 'pointer', letterSpacing: 0.5, transition: 'background .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#80868b'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#5f6368'; }}>
-              S A L I R
+              style={{
+                background: '#c5221f', border: 'none',
+                color: '#fff', borderRadius: 20, padding: '8px 22px',
+                fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                transition: 'background .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#a50e0e'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#c5221f'; }}>
+              Salir
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 const puppeteer = require('puppeteer');
 
 const generarPDF = async (req, res) => {
-  const { html, nombre, margins } = req.body;
+  const { html, nombre, margins, size } = req.body;
   if (!html) return res.status(400).json({ error: 'HTML requerido' });
 
   let browser;
@@ -15,8 +15,9 @@ const generarPDF = async (req, res) => {
 
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
+    // Si se pasa un `size` con width/height (ej. térmica 80mm), usamos eso.
+    // Si no, usamos format: 'A4' por defecto.
+    const pdfOpciones = {
       printBackground: true,
       margin: {
         top:    margins?.top    ?? '10mm',
@@ -24,7 +25,15 @@ const generarPDF = async (req, res) => {
         bottom: margins?.bottom ?? '0mm',
         left:   margins?.left   ?? '0mm',
       },
-    });
+    };
+    if (size?.width) {
+      pdfOpciones.width  = size.width;
+      pdfOpciones.height = size.height ?? undefined;
+    } else {
+      pdfOpciones.format = 'A4';
+    }
+
+    const pdfBuffer = await page.pdf(pdfOpciones);
 
     await browser.close();
 

@@ -38,6 +38,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [pdfNombre, setPdfNombre]       = useState('');
   const [pdfGenerando, setPdfGenerando] = useState(false);
   const [pdfOpcion, setPdfOpcion]       = useState(1);
+  const [pdfEsTermica, setPdfEsTermica] = useState(false);
   const [idEdicion, setIdEdicion]       = useState(null);
   const [tipoEdicion, setTipoEdicion]   = useState(null);
   const [tipoNuevo, setTipoNuevo]       = useState('recibo');
@@ -224,24 +225,36 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
   const filasValidas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
 
-  const imprimirTermica = () => {
+  const imprimirTermica = async () => {
     if (filasValidas.length === 0) { alert('No hay productos para imprimir'); return; }
-    const tipoDoc = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
+    const tipoDoc   = (idEdicion ? tipoEdicion : tipoNuevo).toUpperCase();
     const numeroDoc = idEdicion ? numeroEdicion : (numeroPreview || 'BORRADOR');
+    const nombre    = `${tipoDoc}-${numeroDoc}-${fecha}-termica.pdf`;
     const html = generarHTMLTermica({
       tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
       filas: filasValidas, subtotalBase, totalIva, total,
     });
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
-    document.body.appendChild(iframe);
-    iframe.contentDocument.open();
-    iframe.contentDocument.write(html);
-    iframe.contentDocument.close();
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 1000);
+    setPdfNombre(nombre);
+    setPdfEsTermica(true);
+    setModalPDF(true);
+    setPdfGenerando(true);
+    setPdfBlobUrl(null);
+    try {
+      const res = await api.post(
+        '/documentos/pdf',
+        { html, nombre, size: { width: '80mm' }, margins: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' } },
+        { responseType: 'blob' }
+      );
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      setPdfBlobUrl(url);
+    } catch (err) {
+      console.error(err);
+      alert('Error al generar PDF térmico');
+      setModalPDF(false);
+    } finally {
+      setPdfGenerando(false);
+    }
   };
 
   const obtenerDatosHTML = (opcion = 1) => {
@@ -295,6 +308,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
   const cerrarModalPDF = () => {
     setModalPDF(false);
+    setPdfEsTermica(false);
     if (pdfBlobUrl) { URL.revokeObjectURL(pdfBlobUrl); setPdfBlobUrl(null); }
   };
 
@@ -1069,61 +1083,64 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
           {/* Barra inferior */}
           <div style={{
-            background: '#3c4043', borderTop: '1px solid #5f6368',
+            background: '#29292b', borderTop: '1px solid #3c4043',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 16, padding: '10px 24px', flexShrink: 0, flexWrap: 'wrap',
+            gap: 10, padding: '10px 24px', flexShrink: 0, flexWrap: 'wrap',
           }}>
-
-            {/* Selector de formato */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-              background: '#2d2f31', borderRadius: 8, padding: '4px 6px',
-              border: '1px solid #5f6368' }}>
+            {/* Selector formato en píldora — solo para PDF normal */}
+            {!pdfEsTermica && (
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              background: '#2a2c2e', borderRadius: 20, padding: '3px',
+              border: '1px solid #5f6368', gap: 2,
+            }}>
               <span style={{ color: '#9aa0a6', fontSize: 11, fontWeight: 600,
-                marginRight: 4, whiteSpace: 'nowrap' }}>FORMATO:</span>
-              {[
-                { id: 1, label: 'Formato PDF' },
-                { id: 2, label: 'Tabla' },
-              ].map(op => (
+                padding: '0 10px', whiteSpace: 'nowrap', letterSpacing: 0.4 }}>Formato</span>
+              <div style={{ width: 1, height: 16, background: '#5f6368' }} />
+              {[{ id: 1, label: 'PDF' }, { id: 2, label: 'Tabla' }].map(op => (
                 <button key={op.id}
                   onClick={() => cambiarOpcionPDF(op.id)}
                   disabled={pdfGenerando}
                   style={{
-                    background: pdfOpcion === op.id ? '#1a73e8' : 'transparent',
-                    border: pdfOpcion === op.id ? 'none' : '1px solid #5f6368',
-                    color: pdfOpcion === op.id ? '#fff' : '#bdc1c6',
-                    borderRadius: 6, padding: '6px 14px', fontWeight: 600,
+                    background: pdfOpcion === op.id ? '#8ab4f8' : 'transparent',
+                    border: 'none',
+                    color: pdfOpcion === op.id ? '#202124' : '#9aa0a6',
+                    borderRadius: 16, padding: '5px 16px', fontWeight: 700,
                     fontSize: 12, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
                     transition: 'all .15s', whiteSpace: 'nowrap',
-                    opacity: pdfGenerando ? 0.6 : 1,
+                    opacity: pdfGenerando ? 0.5 : 1,
                   }}>
                   {op.label}
                 </button>
               ))}
             </div>
+            )}
 
+            {/* Descargar PDF */}
             <button onClick={descargarBlobPDF} disabled={pdfGenerando}
               style={{
-                background: '#1a73e8', border: 'none', color: '#fff',
-                borderRadius: 6, padding: '10px 24px', fontWeight: 700,
+                background: '#8ab4f8', border: 'none', color: '#202124',
+                borderRadius: 20, padding: '8px 22px', fontWeight: 700,
                 fontSize: 13, cursor: pdfGenerando ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 8,
-                opacity: pdfGenerando ? 0.5 : 1, letterSpacing: 0.5,
-                transition: 'background .15s',
+                opacity: pdfGenerando ? 0.5 : 1, transition: 'background .15s',
               }}
-              onMouseEnter={e => { if (!pdfGenerando) e.currentTarget.style.background = '#1557b0'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#1a73e8'; }}>
-              <IcoDownload /> DESCARGAR PDF
+              onMouseEnter={e => { if (!pdfGenerando) e.currentTarget.style.background = '#aecbfa'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#8ab4f8'; }}>
+              <IcoDownload /> Descargar PDF
             </button>
+
+            {/* Salir */}
             <button onClick={cerrarModalPDF}
               style={{
-                background: '#5f6368', border: 'none', color: '#e8eaed',
-                borderRadius: 6, padding: '10px 28px', fontWeight: 700,
-                fontSize: 13, cursor: 'pointer', letterSpacing: 0.5,
+                background: '#c5221f', border: 'none',
+                color: '#fff', borderRadius: 20, padding: '8px 22px',
+                fontWeight: 700, fontSize: 13, cursor: 'pointer',
                 transition: 'background .15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#80868b'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#5f6368'; }}>
-              S A L I R
+              onMouseEnter={e => { e.currentTarget.style.background = '#a50e0e'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#c5221f'; }}>
+              Salir
             </button>
           </div>
         </div>
@@ -1296,15 +1313,15 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
 
     .header-box { border: 2px solid #000; display: flex; align-items: stretch; }
     .header-left { flex: 1; min-width: 0; padding: 7px 7px 7px 8px; border-right: 2px solid #000; overflow: hidden; }
-    .header-right { width: 60px; min-width: 60px; max-width: 60px; padding: 6px 5px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-    .empresa-nombre { font-size: 11pt; font-weight: 900; text-transform: uppercase; color: #000; }
+    .header-right { width: 68px; min-width: 68px; max-width: 68px; padding: 6px 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; overflow: hidden; }
+    .empresa-nombre { font-size: 11pt; font-weight: 900; text-transform: uppercase; color: #000; white-space: nowrap; }
     .empresa-info   { font-size: 6.5pt; margin-top: 4px; line-height: 1.7; color: #000; font-weight: 700; }
-    .doc-tipo  { font-size: 8.5pt; font-weight: 900; text-transform: uppercase; text-align: center; color: #000; word-break: break-word; hyphens: auto; line-height: 1.2; }
+    .doc-tipo  { font-size: 7pt; font-weight: 900; text-transform: uppercase; text-align: center; color: #000; white-space: nowrap; }
     .doc-num   { font-size: 6.5pt; font-weight: 900; text-align: center; color: #000; word-break: break-all; }
     .doc-fecha { font-size: 6pt; font-weight: 700; text-align: center; color: #000; }
 
     .cliente-box { border: 2px solid #000; border-top: none; padding: 4px 8px; font-size: 7.5pt; }
-    .cliente-row { display: flex; gap: 4px; margin: 1px 0; }
+    .cliente-row { display: flex; gap: 4px; margin: 1px 0; align-items: center; }
     .cliente-label { font-weight: 900; min-width: 42px; color: #000; }
 
     table { width: 100%; border-collapse: collapse; font-size: 7.5pt; border: 2px solid #000; border-top: none; }
@@ -1358,7 +1375,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
   <table>
     <thead>
       <tr class="tbl-header">
-        <th style="width:22px">CANT</th>
+        <th style="width:22px;text-align:center">CANT</th>
         <th>DESCRIPCI\u00d3N</th>
         <th class="r" style="width:36px">P.U.</th>
         <th class="r" style="width:40px">TOTAL</th>
@@ -1368,7 +1385,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
       ${filas.map(f => {
         const sub = parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva) || 0) / 100);
         return `<tr>
-          <td class="r">${parseFloat(f.cantidad)}</td>
+          <td style="text-align:center;padding:3px 4px;">${parseFloat(f.cantidad)}</td>
           <td class="desc">${f.descripcion}${parseFloat(f.iva) > 0 ? `<br><span class="iva-label">IVA ${parseFloat(f.iva)}%</span>` : ''}</td>
           <td class="r">${parseFloat(f.precio).toFixed(2)}</td>
           <td class="r">${sub.toFixed(2)}</td>
