@@ -23,7 +23,7 @@ const IcoWarn = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none
 
 const filaVacia = () => ({
   _id: Math.random(), producto_id: null, codigo: '',
-  descripcion: '', cantidad: 1, precio: 0, iva: 0, subtotal: 0,
+  descripcion: '', cantidad: 1, precio: 0, subtotal: 0,
 });
 
 export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
@@ -119,7 +119,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     setFilas((datosEdicion.filas || []).map(f => ({
       ...f,
       _id: Math.random(),
-      subtotal: (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0) * (1 + (parseFloat(f.iva) || 0) / 100),
+      subtotal: (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0),
     })));
     setIdEdicion(datosEdicion.id || null);
     setTipoEdicion(datosEdicion.tipo || null);
@@ -178,11 +178,13 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   };
 
   const seleccionarProducto = (filaId, producto) => {
+    const precioSinIva = parseFloat(producto.pvp1) || 0;
+    const iva          = parseFloat(producto.iva)  || 0;
+    const precioConIva = parseFloat((precioSinIva * (1 + iva / 100)).toFixed(2));
     actualizarFila(filaId, {
       producto_id: producto.id, codigo: producto.codigo,
       descripcion: producto.descripcion,
-      precio: parseFloat(producto.pvp1) || 0,
-      iva:    parseFloat(producto.iva)  || 0,
+      precio: precioConIva,
     }, true);
     setSugerencias([]); setFilaActiva(null);
     activeInputRef.current = null;
@@ -192,11 +194,10 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     setFilas(prev => prev.map(f => {
       if (f._id !== filaId) return f;
       const nueva = { ...f, ...cambios };
-      if (recalcular || cambios.cantidad !== undefined || cambios.precio !== undefined || cambios.iva !== undefined) {
+      if (recalcular || cambios.cantidad !== undefined || cambios.precio !== undefined) {
         const cant = parseFloat(nueva.cantidad) || 0;
         const prec = parseFloat(nueva.precio)   || 0;
-        const iva  = parseFloat(nueva.iva)       || 0;
-        nueva.subtotal = cant * prec * (1 + iva / 100);
+        nueva.subtotal = cant * prec;
       }
       return nueva;
     }));
@@ -211,11 +212,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   };
 
   const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0), 0);
-  const totalIva     = filas.reduce((s, f) => {
-    const base = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
-    return s + base * ((parseFloat(f.iva) || 0) / 100);
-  }, 0);
-  const total = subtotalBase + totalIva;
+  const total = subtotalBase;
 
   const guardar = async () => {
     const filasValidas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
@@ -225,7 +222,6 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       const detalle = filasValidas.map(f => ({
         producto_id: f.producto_id, descripcion: f.descripcion,
         cantidad: parseFloat(f.cantidad), precio: parseFloat(f.precio),
-        iva: parseFloat(f.iva) || 0,
       }));
       if (idEdicion) {
         // Actualizar documento existente
@@ -256,7 +252,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     const html = generarHTMLTermica({
       tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
+      filas: filasValidas, subtotalBase, total,
     });
     setPdfNombre(nombre);
     setPdfEsTermica(true);
@@ -290,13 +286,13 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       html = generarHTML({
         tipo: tipoDoc, numero: numeroDoc,
         cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-        filas: filasValidas, subtotalBase, totalIva, total,
+        filas: filasValidas, subtotalBase, total,
       });
     } else {
       html = generarHTMLTabla({
         tipo: tipoDoc, numero: numeroDoc,
         cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-        filas: filasValidas, subtotalBase, totalIva, total,
+        filas: filasValidas, subtotalBase, total,
       });
     }
     return { html, nombre };
@@ -356,7 +352,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     const htmlContent = generarHTML({
       tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
+      filas: filasValidas, subtotalBase, total,
     });
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
@@ -477,10 +473,9 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     // ── ENCABEZADO TABLA ─────────────────────────────────────
     const cols = [
       { label: 'CANT.',      w: 18,  align: 'right'  },
-      { label: 'DESCRIPCIÓN',w: 74,  align: 'left'   },
-      { label: 'V. UNITARIO',w: 32,  align: 'right'  },
-      { label: 'IVA %',      w: 24,  align: 'center' },
-      { label: 'V. TOTAL',   w: 34,  align: 'right'  },
+      { label: 'DESCRIPCIÓN',w: 90,  align: 'left'   },
+      { label: 'V. UNITARIO',w: 36,  align: 'right'  },
+      { label: 'V. TOTAL',   w: 38,  align: 'right'  },
     ];
     const TH_H = 8;
     fill('#0D111C'); stroke('#333333');
@@ -515,7 +510,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       doc.rect(M, y, CW, ROW_H, 'FD');
 
       if (!esVacia) {
-        const sub = parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva)||0)/100);
+        const sub = parseFloat(f.cantidad) * parseFloat(f.precio);
         doc.setFont('helvetica','normal');
         doc.setFontSize(8.5);
         text('#111111');
@@ -525,7 +520,6 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
           { v: String(parseFloat(f.cantidad)), align: 'right'  },
           { v: f.descripcion,                  align: 'left'   },
           { v: `$${parseFloat(f.precio).toFixed(2)}`, align: 'right' },
-          { v: `${parseFloat(f.iva||0)}%`,     align: 'center' },
           { v: `$${sub.toFixed(2)}`,           align: 'right'  },
         ];
         cols.forEach((col, ci) => {
@@ -551,29 +545,6 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       }
 
       y += ROW_H;
-    }
-
-    // ── SUBTOTAL / IVA ───────────────────────────────────────
-    const SUB_H = 6.5;
-    if (totalIva > 0) {
-      stroke('#D1D5DB'); fill('#F9FAFB');
-      doc.setLineWidth(0.3);
-      doc.rect(M, y, CW, SUB_H, 'FD');
-      doc.setFont('helvetica','bold');
-      doc.setFontSize(8);
-      text('#6B7280');
-      doc.text('Subtotal:', M + CW - cols[cols.length-1].w - 3, y + 4.5, { align: 'right' });
-      text('#374151');
-      doc.text(`$${subtotalBase.toFixed(2)}`, M + CW - 3, y + 4.5, { align: 'right' });
-      y += SUB_H;
-
-      fill('#F9FAFB');
-      doc.rect(M, y, CW, SUB_H, 'FD');
-      text('#6B7280');
-      doc.text('IVA:', M + CW - cols[cols.length-1].w - 3, y + 4.5, { align: 'right' });
-      text('#374151');
-      doc.text(`$${totalIva.toFixed(2)}`, M + CW - 3, y + 4.5, { align: 'right' });
-      y += SUB_H;
     }
 
     // ── FILA TOTAL ───────────────────────────────────────────
@@ -608,7 +579,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     const html       = generarHTMLCaptura({
       tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, totalIva, total,
+      filas: filasValidas, subtotalBase, total,
     });
 
     const htmlCompleto = `<!DOCTYPE html>
@@ -810,14 +781,13 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                   { label: 'Descripción',  align: 'left',   w: null },
                   { label: 'Cant.',        align: 'center', w: 80 },
                   { label: 'V. Unitario',  align: 'right',  w: 105 },
-                  { label: 'IVA %',        align: 'center', w: 72 },
                   { label: 'V. Total',     align: 'right',  w: 105 },
                   { label: '',             align: 'center', w: 38 },
                 ].map((h, i) => (
                   <th key={i} style={{
                     padding: '9px 10px', color: '#fff', fontWeight: 700,
                     fontSize: 11, letterSpacing: 0.8, textAlign: h.align,
-                    borderRight: i < 7 ? '1px solid #1a3a7a' : 'none',
+                    borderRight: i < 6 ? '1px solid #1a3a7a' : 'none',
                     textTransform: 'uppercase', whiteSpace: 'nowrap',
                     width: h.w || undefined,
                   }}>
@@ -881,6 +851,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                   <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input type="number" value={fila.cantidad} min="1" step="1"
                       onChange={e => actualizarFila(fila._id, { cantidad: e.target.value }, true)}
+                      onFocus={e => e.target.select()}
                       style={{ ...celdaSt, width: '100%', textAlign: 'center', background: 'transparent',
                         border: '1px solid transparent', borderRadius: 4 }} />
                   </td>
@@ -889,28 +860,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                   <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
                     <input type="number" value={fila.precio} min="0" step="0.01"
                       onChange={e => actualizarFila(fila._id, { precio: e.target.value }, true)}
-                      onBlur={e => {
-                        const iva = parseFloat(fila.iva) || 0;
-                        if (iva > 0) {
-                          const precioConIva = parseFloat(e.target.value);
-                          if (!isNaN(precioConIva) && precioConIva > 0) {
-                            const precioSinIva = precioConIva / (1 + iva / 100);
-                            actualizarFila(fila._id, { precio: parseFloat(precioSinIva.toFixed(4)) }, true);
-                          }
-                        }
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') e.target.blur();
-                      }}
+                      onFocus={e => e.target.select()}
                       style={{ ...celdaSt, width: '100%', textAlign: 'right', background: 'transparent',
-                        border: '1px solid transparent', borderRadius: 4 }} />
-                  </td>
-
-                  {/* IVA % */}
-                  <td style={{ padding: '4px 4px', borderRight: '1px solid #e5e7eb' }}>
-                    <input type="number" value={fila.iva} min="0" max="100"
-                      onChange={e => actualizarFila(fila._id, { iva: e.target.value }, true)}
-                      style={{ ...celdaSt, width: '100%', textAlign: 'center', background: 'transparent',
                         border: '1px solid transparent', borderRadius: 4 }} />
                   </td>
 
@@ -944,7 +895,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                     <td style={{ padding: '7px 10px', borderRight: '1px solid #e5e7eb',
                       color: '#e5e7eb', fontSize: 12, textAlign: 'center' }}>{filas.length + i + 1}</td>
                     {isFirstEmpty ? (
-                      <td colSpan={6} style={{ padding: '5px 8px', borderRight: '1px solid #e5e7eb' }}>
+                      <td colSpan={5} style={{ padding: '5px 8px', borderRight: '1px solid #e5e7eb' }}>
                         <button onClick={agregarFila}
                           data-agregar="true"
                           style={{ display: 'flex', alignItems: 'center', gap: 6,
@@ -962,7 +913,6 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                         <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
                         <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
                         <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
-                        <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px' }}>&nbsp;</td>
                         <td style={{ borderRight: '1px solid #e5e7eb', padding: '7px 10px', textAlign: 'right',
                           color: '#9ca3af', fontSize: 12 }}>0,00</td>
                       </>
@@ -972,33 +922,9 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                 );
               })}
 
-              {/* Subtotal / IVA */}
-              {totalIva > 0 && <>
-                <tr style={{ background: '#f9fafb', borderTop: '1px solid #d1d5db' }}>
-                  <td colSpan={5} style={{ borderRight: '1px solid #e5e7eb' }}></td>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', color: '#6b7280',
-                    fontWeight: 600, fontSize: 12, borderRight: '1px solid #e5e7eb' }}>Subtotal:</td>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600,
-                    fontSize: 13, color: '#374151', borderRight: '1px solid #e5e7eb' }}>
-                    ${subtotalBase.toFixed(2)}
-                  </td>
-                  <td></td>
-                </tr>
-                <tr style={{ background: '#f9fafb' }}>
-                  <td colSpan={5} style={{ borderRight: '1px solid #e5e7eb' }}></td>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', color: '#6b7280',
-                    fontWeight: 600, fontSize: 12, borderRight: '1px solid #e5e7eb' }}>IVA:</td>
-                  <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600,
-                    fontSize: 13, color: '#374151', borderRight: '1px solid #e5e7eb' }}>
-                    ${totalIva.toFixed(2)}
-                  </td>
-                  <td></td>
-                </tr>
-              </>}
-
               {/* Fila TOTAL */}
               <tr style={{ background: '#F5C400', borderTop: '2px solid #333', borderBottom: '2px solid #333' }}>
-                <td colSpan={5} style={{ padding: '10px 12px', borderRight: '1px solid #d97706' }}></td>
+                <td colSpan={4} style={{ padding: '10px 12px', borderRight: '1px solid #d97706' }}></td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 900,
                   fontSize: 13, color: '#111', textTransform: 'uppercase', letterSpacing: 1,
                   borderRight: '1px solid #d97706' }}>
@@ -1113,7 +1039,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               </div>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
                 <span style={{ color: C.amarillo, fontWeight: 700, fontSize: 13 }}>
-                  ${parseFloat(p.pvp1).toFixed(2)}
+                  ${(parseFloat(p.pvp1) * (1 + (parseFloat(p.iva) || 0) / 100)).toFixed(2)}
                 </span>
                 <span style={{
                   fontSize: 11, padding: '2px 8px', borderRadius: 20,
@@ -1274,7 +1200,7 @@ const celdaSt = {
   outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
 };
 
-export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
+export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total }) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -1288,12 +1214,12 @@ export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, s
   </style>
 </head>
 <body>
-${generarHTMLCaptura({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total })}
+${generarHTMLCaptura({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total })}
 </body>
 </html>
 `;
 
-export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
+export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total }) => `
 <div style="font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;">
   <div style="display:flex;align-items:stretch;border:2px solid #333;">
     <div style="background:#F5C400;flex:1;padding:14px 20px;">
@@ -1323,7 +1249,6 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
         <th style="padding:9px 10px;color:#fff;font-weight:700;font-size:11px;letter-spacing:0.8px;text-align:left;border-right:1px solid #1a3a7a;text-transform:uppercase;">Descripción</th>
         <th style="padding:9px 10px;color:#fff;font-weight:700;font-size:11px;letter-spacing:0.8px;text-align:center;border-right:1px solid #1a3a7a;text-transform:uppercase;width:80px;">Cant.</th>
         <th style="padding:9px 10px;color:#fff;font-weight:700;font-size:11px;letter-spacing:0.8px;text-align:right;border-right:1px solid #1a3a7a;text-transform:uppercase;width:105px;">V. Unitario</th>
-        <th style="padding:9px 10px;color:#fff;font-weight:700;font-size:11px;letter-spacing:0.8px;text-align:center;border-right:1px solid #1a3a7a;text-transform:uppercase;width:72px;">IVA %</th>
         <th style="padding:9px 10px;color:#fff;font-weight:700;font-size:11px;letter-spacing:0.8px;text-align:right;text-transform:uppercase;width:105px;">V. Total</th>
       </tr>
     </thead>
@@ -1335,8 +1260,7 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
           <td style="padding:10px 10px;height:40px;border-right:1px solid #e5e7eb;">${f.descripcion}</td>
           <td style="padding:10px 10px;height:40px;text-align:center;border-right:1px solid #e5e7eb;">${parseFloat(f.cantidad)}</td>
           <td style="padding:10px 10px;height:40px;text-align:right;border-right:1px solid #e5e7eb;">$${parseFloat(f.precio).toFixed(2)}</td>
-          <td style="padding:10px 10px;height:40px;text-align:center;border-right:1px solid #e5e7eb;">${parseFloat(f.iva || 0)}%</td>
-          <td style="padding:10px 10px;height:40px;text-align:right;font-weight:600;">$${parseFloat(f.subtotal || 0).toFixed(2)}</td>
+          <td style="padding:10px 10px;height:40px;text-align:right;font-weight:600;">$${(parseFloat(f.cantidad) * parseFloat(f.precio)).toFixed(2)}</td>
         </tr>
       `).join('')}
       ${Array.from({ length: Math.max(0, 8 - filas.length) }).map((_, i) => `
@@ -1346,24 +1270,11 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
           <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
           <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
           <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
-          <td style="height:40px;border-right:1px solid #e5e7eb;padding:10px 10px;"></td>
           <td style="height:40px;padding:10px 12px;text-align:right;color:#9ca3af;font-size:12px;">0,00</td>
         </tr>
       `).join('')}
-      ${totalIva > 0 ? `
-        <tr style="background:#f9fafb;border-top:1px solid #d1d5db;">
-          <td colspan="5" style="border-right:1px solid #e5e7eb;"></td>
-          <td style="padding:6px 12px;text-align:right;color:#6b7280;font-weight:600;font-size:12px;border-right:1px solid #e5e7eb;">Subtotal:</td>
-          <td style="padding:6px 12px;text-align:right;font-weight:600;font-size:13px;color:#374151;">$${subtotalBase.toFixed(2)}</td>
-        </tr>
-        <tr style="background:#f9fafb;">
-          <td colspan="5" style="border-right:1px solid #e5e7eb;"></td>
-          <td style="padding:6px 12px;text-align:right;color:#6b7280;font-weight:600;font-size:12px;border-right:1px solid #e5e7eb;">IVA:</td>
-          <td style="padding:6px 12px;text-align:right;font-weight:600;font-size:13px;color:#374151;">$${totalIva.toFixed(2)}</td>
-        </tr>
-      ` : ''}
       <tr style="background:#F5C400;border-top:2px solid #333;border-bottom:2px solid #333;">
-        <td colspan="5" style="padding:10px 12px;border-right:1px solid #d97706;"></td>
+        <td colspan="4" style="padding:10px 12px;border-right:1px solid #d97706;"></td>
         <td style="padding:10px 12px;text-align:right;font-weight:900;font-size:13px;color:#111;text-transform:uppercase;letter-spacing:1px;border-right:1px solid #d97706;">TOTAL</td>
         <td style="padding:10px 12px;text-align:right;font-weight:900;font-size:16px;color:#111;">$${total.toFixed(2)}</td>
       </tr>
@@ -1372,7 +1283,7 @@ export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas,
 </div>
 `;
 
-export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => `
+export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total }) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -1455,10 +1366,10 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     </thead>
     <tbody>
       ${filas.map(f => {
-        const sub = parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva) || 0) / 100);
+        const sub = parseFloat(f.cantidad) * parseFloat(f.precio);
         return `<tr>
           <td style="text-align:center;padding:3px 4px;">${parseFloat(f.cantidad)}</td>
-          <td class="desc">${f.descripcion}${parseFloat(f.iva) > 0 ? `<br><span class="iva-label">IVA ${parseFloat(f.iva)}%</span>` : ''}</td>
+          <td class="desc">${f.descripcion}</td>
           <td class="r">${parseFloat(f.precio).toFixed(2)}</td>
           <td class="r">${sub.toFixed(2)}</td>
         </tr>`;
@@ -1467,16 +1378,11 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
   </table>
 
   <div class="totales-box">
-    ${totalIva > 0 ? `
-      <div class="tot-row"><span>SUBTOTAL SIN IVA:</span><span>$${subtotalBase.toFixed(2)}</span></div>
-      <div class="tot-row"><span>IVA:</span><span>$${totalIva.toFixed(2)}</span></div>
-      <div class="tot-sep"></div>
-    ` : ''}
     <div class="tot-final"><span>TOTAL</span><span>$${total.toFixed(2)}</span></div>
   </div>
 
   <div class="sep"></div>
-  <div class="pie">\u00a1Gracias por su compra!<br>Este documento no es un comprobante fiscal.</div>
+  <div class="pie">\u00a1Gracias por su compra!<br>Este documento no tiene valor tributario.</div>
 </div>
 </body>
 </html>

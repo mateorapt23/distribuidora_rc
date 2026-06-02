@@ -104,7 +104,6 @@ export default function Guardados({ onVerEnTabla }) {
         detalle: editFilas.map(f => ({
           producto_id: f.producto_id, descripcion: f.descripcion,
           cantidad: parseFloat(f.cantidad), precio: parseFloat(f.precio),
-          iva: parseFloat(f.iva) || 0,
         })),
       });
       setModalEditar(false); cargar();
@@ -119,7 +118,6 @@ export default function Guardados({ onVerEnTabla }) {
         detalle: detalle.map(d => ({
           producto_id: d.producto_id, descripcion: d.descripcion,
           cantidad: parseFloat(d.cantidad), precio: parseFloat(d.precio),
-          iva: parseFloat(d.iva) || 0,
         })),
       });
       alert(`✅ Convertido a Nota de entrega ${data.numero}`);
@@ -137,16 +135,12 @@ export default function Guardados({ onVerEnTabla }) {
   const imprimir = (doc, detalleImp) => {
     const filas = detalleImp || detalle;
     const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
-    const totalIva     = filas.reduce((s, f) => {
-      const base = parseFloat(f.cantidad) * parseFloat(f.precio);
-      return s + base * ((parseFloat(f.iva) || 0) / 100);
-    }, 0);
     const tipoDisplay = doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase();
     const html = generarHTML({
       tipo: tipoDisplay, numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
-      subtotalBase, totalIva, total: subtotalBase + totalIva,
+      subtotalBase, total: subtotalBase,
     });
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;border:none;visibility:hidden;';
@@ -162,17 +156,13 @@ export default function Guardados({ onVerEnTabla }) {
   const descargarPDF = (doc, detalleImp) => {
     const filas        = detalleImp || detalle;
     const subtotalBase = filas.reduce((s,f) => s + (parseFloat(f.cantidad)||0)*(parseFloat(f.precio)||0), 0);
-    const totalIva     = filas.reduce((s,f) => {
-      const base = (parseFloat(f.cantidad)||0)*(parseFloat(f.precio)||0);
-      return s + base * ((parseFloat(f.iva)||0) / 100);
-    }, 0);
 
     const tipoDisplay = doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase();
     const htmlBase = generarHTML({
       tipo: tipoDisplay, numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0,10),
       notas: doc.notas || '', filas,
-      subtotalBase, totalIva, total: subtotalBase + totalIva,
+      subtotalBase, total: subtotalBase,
     });
 
     // Reemplazamos el @media print para forzar escala exacta A4 sin márgenes
@@ -210,18 +200,14 @@ export default function Guardados({ onVerEnTabla }) {
     };
   };
 
-    const imprimirTermica = async (doc, detalleImp) => {
+  const imprimirTermica = async (doc, detalleImp) => {
     const filas = detalleImp || detalle;
     const subtotalBase = filas.reduce((s, f) => s + parseFloat(f.cantidad) * parseFloat(f.precio), 0);
-    const totalIva     = filas.reduce((s, f) => {
-      const base = parseFloat(f.cantidad) * parseFloat(f.precio);
-      return s + base * ((parseFloat(f.iva) || 0) / 100);
-    }, 0);
     const html   = generarHTMLTermica({
       tipo: doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
-      subtotalBase, totalIva, total: subtotalBase + totalIva,
+      subtotalBase, total: subtotalBase,
     });
     const nombre = `${doc.tipo.toUpperCase()}-${doc.numero}-${doc.fecha?.slice(0, 10)}-termica.pdf`;
     setPdfNombre(nombre);
@@ -261,15 +247,11 @@ export default function Guardados({ onVerEnTabla }) {
 
   const construirHTMLParaDoc = (doc, filas, opcion = 1) => {
     const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0), 0);
-    const totalIva     = filas.reduce((s, f) => {
-      const base = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
-      return s + base * ((parseFloat(f.iva) || 0) / 100);
-    }, 0);
     const params = {
       tipo: doc.tipo === 'recibo' ? 'NOTA DE ENTREGA' : doc.tipo.toUpperCase(), numero: doc.numero,
       cliente: doc.cliente, fecha: doc.fecha?.slice(0, 10),
       notas: doc.notas || '', filas,
-      subtotalBase, totalIva, total: subtotalBase + totalIva,
+      subtotalBase, total: subtotalBase,
     };
     return opcion === 1 ? generarHTML(params) : generarHTMLTabla(params);
   };
@@ -521,7 +503,7 @@ export default function Guardados({ onVerEnTabla }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: '#f3f4f6' }}>
-                  {['Descripción', 'Cant.', 'Precio', 'IVA %', 'Subtotal'].map(h => (
+                  {['Descripción', 'Cant.', 'Precio', 'Subtotal'].map(h => (
                     <th key={h} style={{ padding: '10px 12px', color: C.textDim, fontSize: 10,
                       letterSpacing: 1.1, textAlign: h === 'Descripción' ? 'left' : 'right',
                       borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase', fontWeight: 600 }}>
@@ -549,14 +531,9 @@ export default function Guardados({ onVerEnTabla }) {
                         onChange={e => actualizarFilaEditar(f._id, 'precio', e.target.value)}
                         style={{ ...celdaSt, width: '100%', textAlign: 'right' }} />
                     </td>
-                    <td style={{ padding: '6px 8px', width: 70 }}>
-                      <input type="number" value={f.iva}
-                        onChange={e => actualizarFilaEditar(f._id, 'iva', e.target.value)}
-                        style={{ ...celdaSt, width: '100%', textAlign: 'right' }} />
-                    </td>
                     <td style={{ padding: '6px 14px', textAlign: 'right',
                       color: C.verde, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                      ${parseFloat(f.subtotal || 0).toFixed(2)}
+                      ${(parseFloat(f.cantidad || 0) * parseFloat(f.precio || 0)).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -718,7 +695,7 @@ const TablaDetalle = ({ filas }) => (
     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
       <thead>
         <tr style={{ background: '#f3f4f6' }}>
-          {['Descripción', 'Cant.', 'Precio', 'IVA %', 'Subtotal'].map(h => (
+          {['Descripción', 'Cant.', 'Precio', 'Subtotal'].map(h => (
             <th key={h} style={{ padding: '10px 14px', color: '#9ca3af', fontSize: 10,
               letterSpacing: 1.1, textAlign: h === 'Descripción' ? 'left' : 'right',
               borderBottom: '1px solid #e5e7eb', textTransform: 'uppercase', fontWeight: 600 }}>
@@ -734,9 +711,8 @@ const TablaDetalle = ({ filas }) => (
             <td style={{ padding: '10px 14px', color: '#374151' }}>{f.descripcion}</td>
             <td style={{ padding: '10px 14px', textAlign: 'right', color: '#374151' }}>{parseFloat(f.cantidad)}</td>
             <td style={{ padding: '10px 14px', textAlign: 'right', color: '#374151' }}>${parseFloat(f.precio).toFixed(2)}</td>
-            <td style={{ padding: '10px 14px', textAlign: 'right', color: '#9ca3af' }}>{parseFloat(f.iva || 0)}%</td>
             <td style={{ padding: '10px 14px', textAlign: 'right', color: '#10b981', fontWeight: 700 }}>
-              ${(parseFloat(f.cantidad) * parseFloat(f.precio) * (1 + (parseFloat(f.iva) || 0) / 100)).toFixed(2)}
+              ${(parseFloat(f.cantidad) * parseFloat(f.precio)).toFixed(2)}
             </td>
           </tr>
         ))}
@@ -746,18 +722,11 @@ const TablaDetalle = ({ filas }) => (
 );
 
 const TotalesDoc = ({ filas }) => {
-  const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad || 0)) * (parseFloat(f.precio || 0)), 0);
-  const totalIva     = filas.reduce((s, f) => {
-    const base = parseFloat(f.cantidad || 0) * parseFloat(f.precio || 0);
-    return s + base * ((parseFloat(f.iva) || 0) / 100);
-  }, 0);
-  const total = subtotalBase + totalIva;
+  const total = filas.reduce((s, f) => s + (parseFloat(f.cantidad || 0)) * (parseFloat(f.precio || 0)), 0);
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
       <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb',
         borderRadius: 12, padding: '16px 22px', minWidth: 240 }}>
-        <TotRow label="Subtotal" valor={`$${subtotalBase.toFixed(2)}`} />
-        <TotRow label="IVA"      valor={`$${totalIva.toFixed(2)}`} />
         <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12, marginTop: 8,
           display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: '#111827', fontWeight: 700, fontSize: 15 }}>TOTAL</span>
@@ -853,19 +822,7 @@ const BtnModal = ({ color, onClick, children, disabled, outline, icon }) => (
 );
 
 // ── HTML impresión ─────────────────────────────────────────
-export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, totalIva, total }) => {
-  // Separar productos con IVA y sin IVA
-  const subtotal15 = filas.reduce((s, f) => {
-    const iva = parseFloat(f.iva) || 0;
-    if (iva > 0) return s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
-    return s;
-  }, 0);
-  const subtotal0 = filas.reduce((s, f) => {
-    const iva = parseFloat(f.iva) || 0;
-    if (iva === 0) return s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
-    return s;
-  }, 0);
-  const ivaLabel = filas.find(f => parseFloat(f.iva) > 0) ? `${parseFloat(filas.find(f => parseFloat(f.iva) > 0).iva)}%` : '15%';
+export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total }) => {
 
   return `<!DOCTYPE html>
 <html>
@@ -1007,20 +964,17 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
         <tr>
           <th style="width:60px">CANT.</th>
           <th>DESCRIPCIÓN</th>
-          <th class="r" style="width:80px">DETALLES</th>
-          <th class="r" style="width:75px">PRECIO U</th>
+          <th class="r" style="width:90px">PRECIO U</th>
           <th class="r" style="width:55px">DESC.</th>
-          <th class="r" style="width:80px">TOTAL</th>
+          <th class="r" style="width:90px">TOTAL</th>
         </tr>
       </thead>
       <tbody>
         ${filas.map(f => {
           const totalFila = (parseFloat(f.cantidad) || 0) * (parseFloat(f.precio) || 0);
-          const ivaStr = parseFloat(f.iva) > 0 ? `IVA ${parseFloat(f.iva)}%` : '';
           return `<tr>
             <td class="c">${parseFloat(f.cantidad)}</td>
             <td>${f.descripcion}</td>
-            <td class="r" style="font-size:9px;color:#666;">${ivaStr}</td>
             <td class="r">${parseFloat(f.precio).toFixed(2)}</td>
             <td class="r">0.00</td>
             <td class="r">${totalFila.toFixed(2)}</td>
@@ -1040,11 +994,8 @@ export const generarHTML = ({ tipo, numero, cliente, fecha, notas, filas, subtot
     </div>
     <div class="totales-box">
       <table class="totales">
-        ${subtotal15 > 0 ? `<tr><td class="tot-lbl">SUBTOTAL IVA ${ivaLabel}</td><td class="tot-val">${subtotal15.toFixed(2)}</td></tr>` : ''}
-        <tr><td class="tot-lbl">SUBTOTAL 0%</td><td class="tot-val">${subtotal0.toFixed(2)}</td></tr>
-        <tr><td class="tot-lbl">SUBTOTAL SIN IMPUESTO</td><td class="tot-val">${subtotalBase.toFixed(2)}</td></tr>
+        <tr><td class="tot-lbl">SUBTOTAL</td><td class="tot-val">${subtotalBase.toFixed(2)}</td></tr>
         <tr><td class="tot-lbl">DESCUENTO</td><td class="tot-val">0.00</td></tr>
-        ${totalIva > 0 ? `<tr><td class="tot-lbl">IVA ${ivaLabel}</td><td class="tot-val">${totalIva.toFixed(2)}</td></tr>` : ''}
         <tr class="total-final"><td class="tot-lbl">TOTAL</td><td class="tot-val">$${total.toFixed(2)}</td></tr>
       </table>
     </div>
