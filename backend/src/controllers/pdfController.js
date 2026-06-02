@@ -1,22 +1,43 @@
 const puppeteer = require('puppeteer');
 
+// Detecta la ruta de Chrome según el SO, como fallback si puppeteer no trae Chromium
+const getChromePath = () => {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  const { platform } = process;
+  if (platform === 'win32')
+    return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+  if (platform === 'darwin')
+    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  return '/usr/bin/google-chrome';
+};
+
+// Intenta con Chromium bundled de puppeteer; si falla, usa Chrome del sistema
+const launchBrowser = async () => {
+  try {
+    return await puppeteer.launch({
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+  } catch {
+    return await puppeteer.launch({
+      executablePath: getChromePath(),
+      headless: 'new',
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+  }
+};
+
 const generarPDF = async (req, res) => {
   const { html, nombre, margins, size } = req.body;
   if (!html) return res.status(400).json({ error: 'HTML requerido' });
 
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    browser = await launchBrowser();
 
     const page = await browser.newPage();
-
     await page.setContent(html, { waitUntil: 'networkidle0' });
 
-    // Si se pasa un `size` con width/height (ej. térmica 80mm), usamos eso.
-    // Si no, usamos format: 'A4' por defecto.
     const pdfOpciones = {
       printBackground: true,
       margin: {
@@ -34,7 +55,6 @@ const generarPDF = async (req, res) => {
     }
 
     const pdfBuffer = await page.pdf(pdfOpciones);
-
     await browser.close();
 
     const filename = (nombre || 'documento.pdf').replace(/[^a-zA-Z0-9.\-_]/g, '_');
@@ -57,17 +77,11 @@ const generarCaptura = async (req, res) => {
 
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    browser = await launchBrowser();
 
     const page = await browser.newPage();
-    // Viewport generoso para que la tabla no se comprima
     await page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 2 });
 
-    // Envolver el HTML en un contenedor de ancho fijo para que
-    // Puppeteer no redimensione los elementos de la tabla
     const htmlWrapped = html.replace(
       /<body[^>]*>/i,
       '<body><div id="recibo-root" style="width:1160px;margin:0 auto;padding:10px;">'
@@ -75,7 +89,6 @@ const generarCaptura = async (req, res) => {
 
     await page.setContent(htmlWrapped, { waitUntil: 'networkidle0' });
 
-    // Capturar SOLO las dimensiones reales del contenido — sin espacio en blanco
     const clip = await page.evaluate(() => {
       const el = document.getElementById('recibo-root');
       if (!el) return null;
