@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const xlsx = require('xlsx');
 const fs   = require('fs');
+const { registrarLog } = require('./logHelper');
 
 // ── Listar ────────────────────────────────────────────────
 const listar = async (req, res) => {
@@ -88,6 +89,14 @@ const crear = async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [identificacion.trim(), tipo, nombre.trim(), direccion || null, telefono || null, email || null]
     );
+
+    await registrarLog(req, {
+      accion: 'crear_cliente',
+      modulo: 'clientes',
+      descripcion: `Creó cliente "${nombre.trim()}" (${tipo}: ${identificacion.trim()})`,
+      referencia_id: rows[0].id,
+    });
+
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'La identificación ya existe' });
@@ -120,6 +129,14 @@ const actualizar = async (req, res) => {
       ]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' });
+
+    await registrarLog(req, {
+      accion: 'editar_cliente',
+      modulo: 'clientes',
+      descripcion: `Editó cliente "${rows[0].nombre}" (${rows[0].identificacion})`,
+      referencia_id: rows[0].id,
+    });
+
     res.json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'La identificación ya existe' });
@@ -130,7 +147,19 @@ const actualizar = async (req, res) => {
 // ── Eliminar (soft delete) ────────────────────────────────
 const eliminar = async (req, res) => {
   try {
+    const { rows } = await pool.query(
+      'SELECT nombre, identificacion FROM clientes WHERE id = $1', [req.params.id]
+    );
+
     await pool.query('UPDATE clientes SET activo = FALSE WHERE id = $1', [req.params.id]);
+
+    await registrarLog(req, {
+      accion: 'eliminar_cliente',
+      modulo: 'clientes',
+      descripcion: `Eliminó cliente "${rows[0]?.nombre || ''}" (${rows[0]?.identificacion || req.params.id})`,
+      referencia_id: parseInt(req.params.id),
+    });
+
     res.json({ mensaje: 'Cliente eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar cliente' });
@@ -146,7 +175,6 @@ const importarExcel = async (req, res) => {
     const sheet    = workbook.Sheets[workbook.SheetNames[0]];
     const raw      = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 
-    // Buscar fila con headers reales (saltar filas vacías al inicio)
     const headerRowIdx = raw.findIndex(row =>
       row.some(cell => typeof cell === 'string' && cell.trim() !== '')
     );
@@ -164,7 +192,6 @@ const importarExcel = async (req, res) => {
       })
       .filter(obj => headers.some(h => obj[h] !== ''));
 
-    // Helper para buscar campo por nombre (case-insensitive)
     const g = (fila, ...keys) => {
       for (const k of keys) {
         const found = Object.keys(fila).find(fk => fk.trim().toLowerCase() === k.toLowerCase());
@@ -190,7 +217,7 @@ const importarExcel = async (req, res) => {
 
       for (const fila of filas) {
         const identificacion = g(fila, 'Identificacion', 'Identificación', 'identificacion', 'RUC/CI', 'CI/RUC')
-          .toString().replace(/^\|/, '').trim(); // quitar el | del inicio si lo tiene
+          .toString().replace(/^\|/, '').trim();
         const tipo    = normalizarTipo(g(fila, 'Tipo', 'tipo'));
         const nombre  = g(fila, 'Cliente', 'Nombre', 'cliente', 'nombre').toString().trim();
         const direccion = g(fila, 'Dirección', 'Direccion', 'direccion').toString().trim() || null;
@@ -231,6 +258,12 @@ const importarExcel = async (req, res) => {
       client.release();
       fs.unlinkSync(req.file.path);
     }
+
+    await registrarLog(req, {
+      accion: 'importar_clientes',
+      modulo: 'clientes',
+      descripcion: `Importó Excel de clientes: ${insertados} creados, ${actualizados} actualizados`,
+    });
 
     res.json({ mensaje: 'Importación completada', insertados, actualizados, errores });
   } catch (err) {

@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const xlsx = require('xlsx');
 const fs = require('fs');
+const { registrarLog } = require('./logHelper');
 
 const listar = async (req, res) => {
   const { buscar, stock_bajo, page = 1, limit = 50 } = req.query;
@@ -67,6 +68,14 @@ const crear = async (req, res) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [codigo, descripcion, inventariable, stock, stock_minimo, iva, pvp1, pvp2]
     );
+
+    await registrarLog(req, {
+      accion: 'crear_producto',
+      modulo: 'productos',
+      descripcion: `Creó producto "${descripcion}" (${codigo}), PVP1: $${pvp1}`,
+      referencia_id: rows[0].id,
+    });
+
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'El código ya existe' });
@@ -91,6 +100,14 @@ const actualizar = async (req, res) => {
       [codigo, descripcion, inventariable, stock_minimo, iva, pvp1, pvp2, req.params.id]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Producto no encontrado' });
+
+    await registrarLog(req, {
+      accion: 'editar_producto',
+      modulo: 'productos',
+      descripcion: `Editó producto "${rows[0].descripcion}" (${rows[0].codigo})`,
+      referencia_id: rows[0].id,
+    });
+
     res.json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'El código ya existe' });
@@ -100,7 +117,19 @@ const actualizar = async (req, res) => {
 
 const eliminar = async (req, res) => {
   try {
+    const { rows } = await pool.query(
+      'SELECT codigo, descripcion FROM productos WHERE id = $1', [req.params.id]
+    );
+
     await pool.query('UPDATE productos SET activo = FALSE WHERE id = $1', [req.params.id]);
+
+    await registrarLog(req, {
+      accion: 'eliminar_producto',
+      modulo: 'productos',
+      descripcion: `Desactivó producto "${rows[0]?.descripcion || ''}" (${rows[0]?.codigo || req.params.id})`,
+      referencia_id: parseInt(req.params.id),
+    });
+
     res.json({ mensaje: 'Producto eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar producto' });
@@ -115,7 +144,7 @@ const ajusteStock = async (req, res) => {
     await client.query('BEGIN');
 
     const { rows } = await client.query(
-      'SELECT stock FROM productos WHERE id = $1 FOR UPDATE', [producto_id]
+      'SELECT stock, descripcion, codigo FROM productos WHERE id = $1 FOR UPDATE', [producto_id]
     );
     if (rows.length === 0) throw new Error('Producto no encontrado');
 
@@ -133,6 +162,14 @@ const ajusteStock = async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: 'ajuste_stock',
+      modulo: 'productos',
+      descripcion: `Ajuste de stock en "${rows[0].descripcion}" (${rows[0].codigo}): ${stockAnterior} → ${stockNuevo} (${cantidad > 0 ? '+' : ''}${cantidad}). Motivo: ${motivo || 'Ajuste manual'}`,
+      referencia_id: producto_id,
+    });
+
     res.json({ mensaje: 'Stock ajustado', stock_nuevo: stockNuevo });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -149,7 +186,6 @@ const importarExcel = async (req, res) => {
     const workbook = xlsx.readFile(req.file.path);
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-    // Buscar la fila que contiene los headers reales (puede haber filas vacías al inicio)
     const raw = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
     const headerRowIdx = raw.findIndex(row =>
       row.some(cell => typeof cell === 'string' && cell.trim() !== '')
@@ -159,7 +195,6 @@ const importarExcel = async (req, res) => {
     const headers = raw[headerRowIdx].map(h => (h || '').toString().trim());
     const dataRows = raw.slice(headerRowIdx + 1);
 
-    // Convertir cada fila en objeto usando los headers encontrados
     const filas = dataRows
       .map(row => {
         const obj = {};
@@ -179,7 +214,7 @@ const importarExcel = async (req, res) => {
     const mapearFila = (fila) => ({
       codigo:        (g(fila, 'Código', 'Codigo', 'codigo', 'CODIGO') || '').toString().trim(),
       descripcion:   (g(fila, 'Descripción', 'Descripcion', 'descripcion', 'DESCRIPCION') || '').toString().replace(/[\t\n\r]+/g, ' ').trim(),
-      inventariable: true, // siempre true al importar, ignorar valor del Excel
+      inventariable: true,
       stock:        parseFloat(g(fila, 'Stock', 'stock') || 0) || 0,
       stock_minimo: parseFloat(g(fila, 'Stock Mínimo', 'Stock Minimo', 'stock_minimo') || 0) || 0,
       iva:          parseFloat(g(fila, 'Iva(%)', 'IVA(%)', 'IVA', 'iva', 'iva(%)') || 0) || 0,
@@ -230,6 +265,12 @@ const importarExcel = async (req, res) => {
       client.release();
       fs.unlinkSync(req.file.path);
     }
+
+    await registrarLog(req, {
+      accion: 'importar_productos',
+      modulo: 'productos',
+      descripcion: `Importó Excel de productos: ${insertados} creados, ${actualizados} actualizados`,
+    });
 
     res.json({ mensaje: 'Importación completada', insertados, actualizados, errores });
   } catch (err) {

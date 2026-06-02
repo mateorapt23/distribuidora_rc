@@ -11,14 +11,13 @@ import Compras from './pages/Compras/Compras';
 import FacturasEfacilito from './pages/FacturasEfacilito/FacturasEfacilito';
 import Reportes from './pages/Reportes/Reportes';
 import Usuarios from './pages/Usuarios/Usuarios';
+import Actividad from './pages/Actividad/Actividad';
 
-const RutaProtegida = ({ children }) => {
+const RutaProtegida = ({ children, soloAdmin = false }) => {
   const { usuario } = useAuth();
-  return usuario ? (
-    <Layout>{children}</Layout>
-  ) : (
-    <Navigate to="/login" replace />
-  );
+  if (!usuario) return <Navigate to="/login" replace />;
+  if (soloAdmin && usuario.rol !== 'admin') return <Navigate to="/dashboard" replace />;
+  return <Layout>{children}</Layout>;
 };
 
 function App() {
@@ -45,10 +44,13 @@ function App() {
         <RutaProtegida><FacturasEfacilito /></RutaProtegida>
       } />
       <Route path="/reportes" element={
-        <RutaProtegida><Reportes /></RutaProtegida>
+        <RutaProtegida soloAdmin><Reportes /></RutaProtegida>
       } />
       <Route path="/usuarios" element={
-        <RutaProtegida><Usuarios /></RutaProtegida>
+        <RutaProtegida soloAdmin><Usuarios /></RutaProtegida>
+      } />
+      <Route path="/actividad" element={
+        <RutaProtegida soloAdmin><Actividad /></RutaProtegida>
       } />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

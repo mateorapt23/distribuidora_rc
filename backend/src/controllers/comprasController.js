@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { registrarLog } = require('./logHelper');
 
 const generarNumeroCompra = async (client) => {
   const { rows } = await client.query("SELECT nextval('seq_compra') AS n");
@@ -118,6 +119,14 @@ const crear = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: 'crear_compra',
+      modulo: 'compras',
+      descripcion: `Registró compra ${numero} de "${proveedor_nombre || 'proveedor desconocido'}" por $${total.toFixed(2)}${factura_ref ? ` (ref: ${factura_ref})` : ''}`,
+      referencia_id: compra.id,
+    });
+
     res.status(201).json(compra);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -137,6 +146,7 @@ const eliminar = async (req, res) => {
       'SELECT * FROM compras WHERE id = $1', [req.params.id]
     );
     if (rows.length === 0) throw new Error('Compra no encontrada');
+    const compra = rows[0];
 
     const { rows: detalle } = await client.query(
       'SELECT * FROM compras_detalle WHERE compra_id = $1', [req.params.id]
@@ -163,6 +173,14 @@ const eliminar = async (req, res) => {
 
     await client.query('DELETE FROM compras WHERE id = $1', [req.params.id]);
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: 'eliminar_compra',
+      modulo: 'compras',
+      descripcion: `Eliminó compra ${compra.numero} de "${compra.proveedor_nombre || 'proveedor desconocido'}" por $${compra.total}`,
+      referencia_id: parseInt(req.params.id),
+    });
+
     res.json({ mensaje: 'Compra eliminada y stock revertido' });
   } catch (err) {
     await client.query('ROLLBACK');

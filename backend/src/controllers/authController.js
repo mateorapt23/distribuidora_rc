@@ -2,6 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const pool = require('../config/db');
+const { registrarLog } = require('./logHelper');
 
 // ── Transporter de email ──────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
@@ -27,6 +28,18 @@ const login = async (req, res) => {
     );
 
     if (rows.length === 0) {
+      // Log intento fallido — usuario no existe
+      await pool.query(
+        `INSERT INTO logs_actividad (usuario_nombre, accion, modulo, descripcion, ip)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          username,
+          'login_fallido',
+          'auth',
+          `Intento de login fallido para el usuario "${username}" (no existe o inactivo)`,
+          req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'desconocida',
+        ]
+      );
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
@@ -34,6 +47,19 @@ const login = async (req, res) => {
     const passwordValida = await bcrypt.compare(password, usuario.password);
 
     if (!passwordValida) {
+      // Log intento fallido — contraseña incorrecta
+      await pool.query(
+        `INSERT INTO logs_actividad (usuario_id, usuario_nombre, accion, modulo, descripcion, ip)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          usuario.id,
+          usuario.nombre,
+          'login_fallido',
+          'auth',
+          `Contraseña incorrecta para "${usuario.username}"`,
+          req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'desconocida',
+        ]
+      );
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
@@ -41,6 +67,20 @@ const login = async (req, res) => {
       { id: usuario.id, username: usuario.username, rol: usuario.rol, nombre: usuario.nombre },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+    );
+
+    // Log login exitoso
+    await pool.query(
+      `INSERT INTO logs_actividad (usuario_id, usuario_nombre, accion, modulo, descripcion, ip)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        usuario.id,
+        usuario.nombre,
+        'login',
+        'auth',
+        `Inicio de sesión exitoso (${usuario.rol})`,
+        req.headers['x-forwarded-for']?.split(',')[0] || req.socket?.remoteAddress || 'desconocida',
+      ]
     );
 
     res.json({
@@ -64,8 +104,6 @@ const perfil = async (req, res) => {
 };
 
 // ── PASO 1: Solicitar código de recuperación ──────────────────────────────────
-// Recibe: { username }
-// Busca el usuario, genera un código de 6 dígitos, lo guarda y lo envía al email
 const solicitarRecuperacion = async (req, res) => {
   const { username } = req.body;
 
@@ -79,31 +117,26 @@ const solicitarRecuperacion = async (req, res) => {
       [username]
     );
 
-    // Respuesta genérica para no revelar si el usuario existe o no
     if (rows.length === 0 || !rows[0].email) {
       return res.json({ mensaje: 'Si el usuario existe y tiene email registrado, recibirás un código.' });
     }
 
     const usuario = rows[0];
 
-    // Invalidar tokens anteriores del mismo usuario que aún no hayan sido usados
     await pool.query(
       'UPDATE password_reset_tokens SET usado = TRUE WHERE usuario_id = $1 AND usado = FALSE',
       [usuario.id]
     );
 
-    // Generar código de 6 dígitos
     const codigo = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Guardar el token en la base de datos (expira en 15 minutos por DEFAULT de la tabla)
     await pool.query(
       'INSERT INTO password_reset_tokens (usuario_id, token) VALUES ($1, $2)',
       [usuario.id, codigo]
     );
 
-    // Enviar email
     await transporter.sendMail({
-      from: `"Distribuidora Rodríguez-Carrión" <${process.env.EMAIL_USER}>`,
+      from: `"Distribuidora RC" <${process.env.EMAIL_USER}>`,
       to: usuario.email,
       subject: 'Código de recuperación de contraseña',
       html: `
@@ -126,8 +159,6 @@ const solicitarRecuperacion = async (req, res) => {
 };
 
 // ── PASO 2: Verificar código ──────────────────────────────────────────────────
-// Recibe: { username, codigo }
-// Verifica que el código sea válido, no esté usado y no haya expirado
 const verificarCodigo = async (req, res) => {
   const { username, codigo } = req.body;
 
@@ -159,8 +190,6 @@ const verificarCodigo = async (req, res) => {
 };
 
 // ── PASO 3: Establecer nueva contraseña ───────────────────────────────────────
-// Recibe: { username, codigo, nuevaPassword }
-// Verifica el código una vez más, actualiza la contraseña y marca el token como usado
 const nuevaPassword = async (req, res) => {
   const { username, codigo, nuevaPassword } = req.body;
 
@@ -173,9 +202,8 @@ const nuevaPassword = async (req, res) => {
   }
 
   try {
-    // Verificar el código una vez más antes de cambiar la contraseña
     const { rows } = await pool.query(
-      `SELECT prt.id, u.id AS usuario_id
+      `SELECT prt.id, u.id AS usuario_id, u.nombre
        FROM password_reset_tokens prt
        JOIN usuarios u ON u.id = prt.usuario_id
        WHERE u.username = $1
@@ -189,21 +217,25 @@ const nuevaPassword = async (req, res) => {
       return res.status(400).json({ error: 'El código es incorrecto o ya expiró' });
     }
 
-    const { id: tokenId, usuario_id } = rows[0];
+    const { id: tokenId, usuario_id, nombre } = rows[0];
 
-    // Hashear la nueva contraseña
     const hash = await bcrypt.hash(nuevaPassword, 10);
 
-    // Actualizar la contraseña del usuario
     await pool.query(
       'UPDATE usuarios SET password = $1 WHERE id = $2',
       [hash, usuario_id]
     );
 
-    // Marcar el token como usado para que no pueda reutilizarse
     await pool.query(
       'UPDATE password_reset_tokens SET usado = TRUE WHERE id = $1',
       [tokenId]
+    );
+
+    // Log cambio de contraseña
+    await pool.query(
+      `INSERT INTO logs_actividad (usuario_id, usuario_nombre, accion, modulo, descripcion)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [usuario_id, nombre, 'cambio_password', 'auth', 'Contraseña restablecida via recuperación']
     );
 
     res.json({ mensaje: 'Contraseña actualizada correctamente' });

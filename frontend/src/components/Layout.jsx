@@ -11,6 +11,7 @@ const ICONS = {
   reportes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
   usuarios: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="10" r="2.5"/><path d="M8.5 17a4 4 0 0 1 7 0"/></svg>,
   clientes: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  actividad: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
   logout: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
 };
 
@@ -41,7 +42,10 @@ const NAV_SECTIONS = [
 
 const NAV_ADMIN = {
   label: 'Sistema',
-  items: [{ to: '/usuarios', label: 'Usuarios', icon: 'usuarios', iconSize: 19 }],
+  items: [
+    { to: '/usuarios',  label: 'Usuarios',  icon: 'usuarios',  iconSize: 19 },
+    { to: '/actividad', label: 'Actividad', icon: 'actividad', iconSize: 16 },
+  ],
 };
 
 const ROUTE_LABELS = {
@@ -53,6 +57,7 @@ const ROUTE_LABELS = {
   '/facturas-ef': 'Facturas Efacilito',
   '/reportes':    'Reportes',
   '/usuarios':    'Usuarios',
+  '/actividad':   'Actividad',
 };
 
 // Colores del sidebar oscuro
@@ -170,13 +175,11 @@ export default function Layout({ children }) {
           flexDirection: 'column',
           gap: 0,
         }}>
-          {/* Fila superior: icono + texto */}
           <div style={{
             display: 'flex', alignItems: 'center',
             gap: 10,
             justifyContent: open ? 'flex-start' : 'center',
           }}>
-            {/* Icono + (reemplazar por logo oficial) */}
             <div style={{
               width: 34, height: 34, flexShrink: 0,
               background: 'linear-gradient(135deg, #F5C400, #e6a800)',
@@ -209,7 +212,6 @@ export default function Layout({ children }) {
             )}
           </div>
 
-          {/* Subtítulo */}
           <div style={{
             fontSize: 8.5, color: S.label, fontWeight: 500,
             letterSpacing: '1.1px', textTransform: 'uppercase',

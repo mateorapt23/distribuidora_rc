@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const bcrypt = require('bcrypt');
+const { registrarLog } = require('./logHelper');
 
 const listar = async (req, res) => {
   try {
@@ -30,6 +31,14 @@ const crear = async (req, res) => {
        RETURNING id, nombre, username, rol, email, activo, creado_en`,
       [nombre, username, hash, rol, email || null]
     );
+
+    await registrarLog(req, {
+      accion: 'crear_usuario',
+      modulo: 'usuarios',
+      descripcion: `Creó el usuario "${username}" con rol ${rol}`,
+      referencia_id: rows[0].id,
+    });
+
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'El username ya existe' });
@@ -58,6 +67,20 @@ const actualizar = async (req, res) => {
         : [nombre, rol, activo, req.params.id, email ?? null]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const cambios = [];
+    if (nombre)  cambios.push(`nombre: "${nombre}"`);
+    if (rol)     cambios.push(`rol: ${rol}`);
+    if (activo !== undefined) cambios.push(`activo: ${activo}`);
+    if (password) cambios.push('contraseña actualizada');
+
+    await registrarLog(req, {
+      accion: 'editar_usuario',
+      modulo: 'usuarios',
+      descripcion: `Editó usuario "${rows[0].username}" — ${cambios.join(', ') || 'sin cambios'}`,
+      referencia_id: rows[0].id,
+    });
+
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar usuario' });
@@ -69,7 +92,20 @@ const eliminar = async (req, res) => {
     return res.status(400).json({ error: 'No puedes eliminar tu propio usuario' });
   }
   try {
+    // Obtenemos el nombre antes de desactivar para el log
+    const { rows } = await pool.query(
+      'SELECT username FROM usuarios WHERE id = $1', [req.params.id]
+    );
+
     await pool.query('UPDATE usuarios SET activo = FALSE WHERE id = $1', [req.params.id]);
+
+    await registrarLog(req, {
+      accion: 'desactivar_usuario',
+      modulo: 'usuarios',
+      descripcion: `Desactivó el usuario "${rows[0]?.username || req.params.id}"`,
+      referencia_id: parseInt(req.params.id),
+    });
+
     res.json({ mensaje: 'Usuario desactivado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar usuario' });

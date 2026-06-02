@@ -1,4 +1,5 @@
 const pool = require('../config/db');
+const { registrarLog } = require('./logHelper');
 
 const generarNumero = async (client, tipo) => {
   const seq = tipo === 'proforma' ? 'seq_proforma' : 'seq_recibo';
@@ -119,6 +120,14 @@ const crear = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: tipo === 'recibo' ? 'crear_recibo' : 'crear_proforma',
+      modulo: 'documentos',
+      descripcion: `Creó ${tipo} ${numero} para "${cliente}" por $${total.toFixed(2)}`,
+      referencia_id: doc.id,
+    });
+
     res.status(201).json({ ...doc, detalle });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -144,7 +153,6 @@ const actualizar = async (req, res) => {
     const doc = docRows[0];
     const esRecibo = doc.tipo === 'recibo';
 
-    // Si es recibo, revertir el stock del detalle anterior antes de reemplazarlo
     if (esRecibo) {
       const { rows: detalleAnterior } = await client.query(
         'SELECT * FROM documentos_detalle WHERE documento_id = $1', [req.params.id]
@@ -187,7 +195,6 @@ const actualizar = async (req, res) => {
       'DELETE FROM documentos_detalle WHERE documento_id = $1', [req.params.id]
     );
 
-    // Insertar nuevo detalle y, si es recibo, aplicar el nuevo descuento de stock
     for (const item of detalle) {
       const sub = parseFloat(item.cantidad) * parseFloat(item.precio);
       await client.query(
@@ -215,6 +222,14 @@ const actualizar = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: esRecibo ? 'editar_recibo' : 'editar_proforma',
+      modulo: 'documentos',
+      descripcion: `Editó ${doc.tipo} ${doc.numero} — cliente: "${cliente}", total: $${total.toFixed(2)}`,
+      referencia_id: parseInt(req.params.id),
+    });
+
     res.json({ mensaje: esRecibo ? 'Recibo actualizado' : 'Proforma actualizada' });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -223,7 +238,6 @@ const actualizar = async (req, res) => {
     client.release();
   }
 };
-
 
 const convertirARecibo = async (req, res) => {
   const client = await pool.connect();
@@ -290,6 +304,14 @@ const convertirARecibo = async (req, res) => {
     }
 
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: 'convertir_proforma',
+      modulo: 'documentos',
+      descripcion: `Convirtió proforma ${proforma.numero} → recibo ${numeroRecibo} para "${proforma.cliente}" por $${total.toFixed(2)}`,
+      referencia_id: recibo.id,
+    });
+
     res.json({ mensaje: 'Convertido a recibo exitosamente', recibo_id: recibo.id, numero: recibo.numero });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -308,8 +330,9 @@ const eliminar = async (req, res) => {
       'SELECT * FROM documentos WHERE id = $1', [req.params.id]
     );
     if (rows.length === 0) throw new Error('Documento no encontrado');
+    const doc = rows[0];
 
-    if (rows[0].tipo === 'recibo') {
+    if (doc.tipo === 'recibo') {
       const { rows: detalle } = await client.query(
         'SELECT * FROM documentos_detalle WHERE documento_id = $1', [req.params.id]
       );
@@ -335,6 +358,14 @@ const eliminar = async (req, res) => {
 
     await client.query('DELETE FROM documentos WHERE id = $1', [req.params.id]);
     await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: doc.tipo === 'recibo' ? 'eliminar_recibo' : 'eliminar_proforma',
+      modulo: 'documentos',
+      descripcion: `Eliminó ${doc.tipo} ${doc.numero} de "${doc.cliente}"`,
+      referencia_id: parseInt(req.params.id),
+    });
+
     res.json({ mensaje: 'Documento eliminado' });
   } catch (err) {
     await client.query('ROLLBACK');

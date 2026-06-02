@@ -5,7 +5,8 @@ const fs = require('fs');
 
 const {
   authRouter, productosRouter, clientesRouter, documentosRouter,
-  comprasRouter, usuariosRouter, dashboardRouter, reportesRouter, facturasEfRouter,
+  comprasRouter, usuariosRouter, dashboardRouter, reportesRouter,
+  facturasEfRouter, logsRouter,                          // ← agregado logsRouter
 } = require('./routes/index');
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/usuarios',    usuariosRouter);
 app.use('/api/dashboard',   dashboardRouter);
 app.use('/api/reportes',    reportesRouter);
 app.use('/api/facturas-ef', facturasEfRouter);
+app.use('/api/logs',        logsRouter);               // ← agregado
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 

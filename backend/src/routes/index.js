@@ -22,6 +22,7 @@ const {
   importarExcel: importarClientes,
   exportarExcel: exportarClientes,
 } = require('../controllers/clientesController');
+const { listar: listarLogs, listarUsuariosLog } = require('../controllers/logsController');
 
 // ── AUTH ──────────────────────────────────────────────────
 const authRouter = express.Router();
@@ -46,7 +47,7 @@ productosRouter.delete('/:id',          soloAdmin, eliminarProd);
 // ── CLIENTES ──────────────────────────────────────────────
 const clientesRouter = express.Router();
 clientesRouter.use(verificarToken);
-clientesRouter.get('/buscar',           buscarClientes);        // autocomplete
+clientesRouter.get('/buscar',           buscarClientes);
 clientesRouter.get('/exportar',         exportarClientes);
 clientesRouter.get('/',                 listarClientes);
 clientesRouter.get('/:id',              obtenerCliente);
@@ -103,6 +104,12 @@ facturasEfRouter.get('/exportar',   exportarFacEf);
 facturasEfRouter.get('/',           listarFacEf);
 facturasEfRouter.delete('/:id',     eliminarFacEf);
 
+// ── LOGS DE ACTIVIDAD ─────────────────────────────────────
+const logsRouter = express.Router();
+logsRouter.use(verificarToken, soloAdmin);        // solo admin puede ver logs
+logsRouter.get('/usuarios', listarUsuariosLog);   // lista de usuarios para el filtro
+logsRouter.get('/',         listarLogs);
+
 module.exports = {
   authRouter,
   productosRouter,
@@ -113,4 +120,5 @@ module.exports = {
   dashboardRouter,
   reportesRouter,
   facturasEfRouter,
+  logsRouter,
 };
