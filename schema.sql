@@ -1,3 +1,7 @@
+-- ============================================================
+-- EXTENSIONES
+-- ============================================================
+
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE usuarios (
@@ -171,6 +175,30 @@ CREATE TRIGGER trg_clientes_updated
     BEFORE UPDATE ON clientes
     FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
 
+-- ============================================================
+-- AUDITORÍA
+-- ============================================================
+
+CREATE TABLE logs_actividad (
+    id              SERIAL PRIMARY KEY,
+    usuario_id      INTEGER       REFERENCES usuarios(id) ON DELETE SET NULL,
+    usuario_nombre  VARCHAR(100),                        -- nombre snapshot por si se elimina el usuario
+    accion          VARCHAR(100)  NOT NULL,              -- ej: 'crear_recibo', 'eliminar_producto'
+    modulo          VARCHAR(50)   NOT NULL,              -- ej: 'documentos', 'productos', 'compras'
+    descripcion     TEXT,                                -- detalle legible, ej: 'Creó recibo R-0015 por $45.00'
+    referencia_id   INTEGER,                             -- id del registro afectado (opcional)
+    ip              VARCHAR(45),                         -- IPv4 o IPv6
+    creado_en       TIMESTAMP     NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_logs_usuario  ON logs_actividad(usuario_id);
+CREATE INDEX idx_logs_modulo   ON logs_actividad(modulo);
+CREATE INDEX idx_logs_creado   ON logs_actividad(creado_en DESC);
+
+-- ============================================================
+-- ÍNDICES
+-- ============================================================
+
 CREATE INDEX idx_productos_codigo      ON productos(codigo);
 CREATE INDEX idx_clientes_identificacion ON clientes(identificacion);
 CREATE INDEX idx_clientes_nombre         ON clientes(nombre);
@@ -179,6 +207,10 @@ CREATE INDEX idx_documentos_fecha      ON documentos(fecha);
 CREATE INDEX idx_movimiento_producto   ON movimiento_stock(producto_id);
 CREATE INDEX idx_compras_fecha         ON compras(fecha);
 CREATE INDEX idx_reset_tokens_usuario  ON password_reset_tokens(usuario_id);
+
+-- ============================================================
+-- FUNCIONES Y TRIGGERS
+-- ============================================================
 
 CREATE OR REPLACE FUNCTION actualizar_timestamp()
 RETURNS TRIGGER AS $$

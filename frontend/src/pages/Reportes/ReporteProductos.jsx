@@ -8,33 +8,115 @@ const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
   amarillo: '#f59e0b', azul: '#3b82f6', verde: '#10b981', rojo: '#ef4444',
 };
-
 const COLORES = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#06b6d4'];
 
-const IcoBuscar = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+// ── Iconos ─────────────────────────────────────────────────
+const IcoXlsx = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12l2.5 3L13 12m0 0l2.5-3M13 12l-2.5-3"/></svg>;
+const IcoPdf  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/></svg>;
+const IcoSort = ({ dir }) => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ marginLeft: 4, opacity: dir ? 1 : 0.35 }}>
+    {(!dir || dir === 'asc')  && <polyline points="18 15 12 9 6 15" style={{ opacity: dir === 'asc'  ? 1 : 0.4 }} />}
+    {(!dir || dir === 'desc') && <polyline points="6 9 12 15 18 9"  style={{ opacity: dir === 'desc' ? 1 : 0.4 }} />}
+  </svg>
+);
 
-const hoy = new Date().toISOString().split('T')[0];
-const primerDiaMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+const loadScript = (src) => new Promise((res, rej) => {
+  if (document.querySelector(`script[src="${src}"]`)) return res();
+  const s = document.createElement('script'); s.src = src;
+  s.onload = res; s.onerror = rej; document.head.appendChild(s);
+});
 
-export default function ReporteProductos() {
-  const [desde, setDesde]       = useState(primerDiaMes);
-  const [hasta, setHasta]       = useState(hoy);
+const exportXLSX = async (rows, headers, filename) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  const ws = window.XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb, ws, 'Reporte');
+  window.XLSX.writeFile(wb, filename);
+};
+
+const exportPDF = async (rows, headers, title, filename) => {
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape' });
+  doc.setFontSize(14); doc.setFont(undefined, 'bold');
+  doc.text(title, 14, 16);
+  doc.setFontSize(9); doc.setFont(undefined, 'normal');
+  doc.text(`Generado: ${new Date().toLocaleString('es-EC')}`, 14, 23);
+  doc.autoTable({ head: [headers], body: rows, startY: 28, styles: { fontSize: 9 },
+    headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' }, alternateRowStyles: { fillColor: [249, 250, 251] } });
+  doc.save(filename);
+};
+
+const Th = ({ label, col, sortCol, sortDir, onSort, align }) => {
+  const active = sortCol === col;
+  return (
+    <th onClick={col ? () => onSort(col) : undefined} style={{
+      padding: '12px 16px', color: active ? C.azul : C.textDim, fontWeight: 600,
+      fontSize: 11, letterSpacing: 1.1, textAlign: align || 'left',
+      borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase',
+      cursor: col ? 'pointer' : 'default', userSelect: 'none', whiteSpace: 'nowrap',
+    }}>
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
+        {label}
+        {col && <IcoSort dir={active ? sortDir : null} />}
+      </span>
+    </th>
+  );
+};
+
+const useSorting = (data, defaultCol, defaultDir) => {
+  const [sortCol, setSortCol] = useState(defaultCol || null);
+  const [sortDir, setSortDir] = useState(defaultDir || 'asc');
+  const onSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+  const sorted = [...data].sort((a, b) => {
+    if (!sortCol) return 0;
+    const va = a[sortCol]; const vb = b[sortCol];
+    const na = parseFloat(va); const nb = parseFloat(vb);
+    const cmp = (!isNaN(na) && !isNaN(nb)) ? na - nb : String(va || '').localeCompare(String(vb || ''));
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+  return { sorted, sortCol, sortDir, onSort };
+};
+
+const BtnExport = ({ onClick, color, label, icon }) => (
+  <button onClick={onClick} style={{
+    display: 'flex', alignItems: 'center', gap: 6,
+    background: 'transparent', border: `1px solid ${color}`, color,
+    borderRadius: 8, padding: '8px 14px', fontWeight: 600, fontSize: 12,
+    cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s',
+  }}
+    onMouseEnter={e => e.currentTarget.style.background = color + '14'}
+    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+    {icon} {label}
+  </button>
+);
+
+// ════════════════════════════════════════════════════════════
+export default function ReporteProductos({ desde, hasta }) {
   const [limit, setLimit]       = useState(20);
   const [data, setData]         = useState([]);
   const [cargando, setCargando] = useState(false);
 
-  const cargar = async () => {
-    setCargando(true);
-    try {
-      const { data } = await api.get(
-        `/reportes/productos-mas-vendidos?fecha_desde=${desde}&fecha_hasta=${hasta}&limit=${limit}`
-      );
-      setData(data);
-    } catch { console.error('Error'); }
-    finally { setCargando(false); }
-  };
+  useEffect(() => {
+    if (!desde || !hasta) return;
+    const cargar = async () => {
+      setCargando(true);
+      try {
+        const { data } = await api.get(
+          `/reportes/productos-mas-vendidos?fecha_desde=${desde}&fecha_hasta=${hasta}&limit=${limit}`
+        );
+        setData(data);
+      } catch { console.error('Error'); }
+      finally { setCargando(false); }
+    };
+    cargar();
+  }, [desde, hasta, limit]);
 
-  useEffect(() => { cargar(); }, []);
+  const { sorted, sortCol, sortDir, onSort } = useSorting(data, 'cantidad_vendida', 'desc');
 
   const datosGrafico = data.slice(0, 10).map(p => ({
     nombre: p.descripcion.length > 20 ? p.descripcion.slice(0, 18) + '..' : p.descripcion,
@@ -42,37 +124,49 @@ export default function ReporteProductos() {
     total: parseFloat(p.total_vendido),
   }));
 
+  const exportarExcel = () => {
+    if (!data.length) return;
+    const headers = ['#', 'Código', 'Descripción', 'Cant. Vendida', 'Total Vendido', 'Nº Documentos'];
+    const rows = data.map((p, i) => [i + 1, p.codigo, p.descripcion,
+      parseFloat(p.cantidad_vendida), parseFloat(p.total_vendido).toFixed(2), p.num_documentos]);
+    exportXLSX(rows, headers, `productos_vendidos_${desde}_${hasta}.xlsx`);
+  };
+
+  const exportarPDF = () => {
+    if (!data.length) return;
+    const headers = ['#', 'Código', 'Descripción', 'Cant. Vendida', 'Total Vendido', 'Nº Docs'];
+    const rows = data.map((p, i) => [i + 1, p.codigo, p.descripcion,
+      parseFloat(p.cantidad_vendida), `$${parseFloat(p.total_vendido).toFixed(2)}`, p.num_documentos]);
+    exportPDF(rows, headers, `Productos más vendidos — ${desde} al ${hasta}`, `productos_vendidos_${desde}_${hasta}.pdf`);
+  };
+
+  if (cargando) return (
+    <div style={{ padding: 60, textAlign: 'center', color: C.textDim }}>Cargando...</div>
+  );
+
   return (
     <div style={{ padding: '24px 28px' }}>
 
-      {/* Filtros */}
-      <div style={{ display: 'flex', gap: 14, marginBottom: 24, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div>
-          <Label>Desde</Label>
-          <input type="date" value={desde} onChange={e => setDesde(e.target.value)} style={inputSt} />
-        </div>
-        <div>
-          <Label>Hasta</Label>
-          <input type="date" value={hasta} onChange={e => setHasta(e.target.value)} style={inputSt} />
-        </div>
-        <div>
-          <Label>Top</Label>
+      {/* Controles superiores */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: C.textDim, fontWeight: 600, letterSpacing: '.5px', textTransform: 'uppercase' }}>Mostrar</span>
           <select value={limit} onChange={e => setLimit(e.target.value)}
-            style={{ ...inputSt, width: 110 }}>
+            style={{ border: `1px solid ${C.border}`, background: '#fff', borderRadius: 8,
+              padding: '7px 12px', fontSize: 13, color: C.textPrimary,
+              outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
             <option value={10}>Top 10</option>
             <option value={20}>Top 20</option>
             <option value={50}>Top 50</option>
           </select>
         </div>
-        <button onClick={cargar} disabled={cargando}
-          style={{ display: 'flex', alignItems: 'center', gap: 7,
-            background: C.azul, border: 'none', color: '#fff', borderRadius: 8,
-            padding: '10px 22px', fontWeight: 700, fontSize: 13,
-            cursor: cargando ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-            opacity: cargando ? 0.6 : 1, boxShadow: '0 2px 8px rgba(59,130,246,0.25)',
-            transition: 'all .15s' }}>
-          <IcoBuscar /> {cargando ? 'Cargando...' : 'Buscar'}
-        </button>
+
+        {data.length > 0 && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <BtnExport onClick={exportarExcel} color="#16a34a" label="Excel" icon={<IcoXlsx />} />
+            <BtnExport onClick={exportarPDF}   color={C.rojo}  label="PDF"   icon={<IcoPdf />} />
+          </div>
+        )}
       </div>
 
       {data.length > 0 && (
@@ -106,39 +200,46 @@ export default function ReporteProductos() {
             </ResponsiveContainer>
           </div>
 
-          {/* Tabla */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          {/* Tabla ordenable */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+            overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+              <colgroup>
+                <col style={{ width: '6%' }}  /> {/* # */}
+                <col style={{ width: '14%' }} /> {/* Código */}
+                <col style={{ width: '36%' }} /> {/* Descripción */}
+                <col style={{ width: '15%' }} /> {/* Cant. vendida */}
+                <col style={{ width: '15%' }} /> {/* Total vendido */}
+                <col style={{ width: '14%' }} /> {/* Nº documentos */}
+              </colgroup>
               <thead>
                 <tr style={{ background: C.deep }}>
-                  {['#', 'Código', 'Descripción', 'Cant. vendida', 'Total vendido', 'Nº documentos'].map(h => (
-                    <th key={h} style={{ padding: '12px 16px', color: C.textDim, fontWeight: 600,
-                      fontSize: 11, letterSpacing: 1.2, textAlign: 'left',
-                      borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase' }}>
-                      {h}
-                    </th>
-                  ))}
+                  <Th label="#"             col={null}             sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                  <Th label="Código"        col="codigo"           sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                  <Th label="Descripción"   col="descripcion"      sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                  <Th label="Cant. vendida" col="cantidad_vendida" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                  <Th label="Total vendido" col="total_vendido"    sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                  <Th label="Nº documentos" col="num_documentos"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
                 </tr>
               </thead>
               <tbody>
-                {data.map((p, i) => (
+                {sorted.map((p, i) => (
                   <tr key={i} style={{ borderBottom: `1px solid ${C.grid}`,
                     background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
-                    <td style={{ padding: '10px 16px', width: 40 }}>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                       <span style={{ color: i < 3 ? COLORES[i] : C.textDim, fontWeight: 700 }}>{i + 1}</span>
                     </td>
-                    <td style={{ padding: '10px 16px', color: C.textDim, fontFamily: 'monospace', fontSize: 12 }}>
+                    <td style={{ padding: '8px 12px', color: C.textDim, fontFamily: 'monospace', fontSize: 12, textAlign: 'center' }}>
                       {p.codigo}
                     </td>
-                    <td style={{ padding: '10px 16px', color: C.textSec }}>{p.descripcion}</td>
-                    <td style={{ padding: '10px 16px', color: C.amarillo, fontWeight: 700 }}>
+                    <td style={{ padding: '8px 12px', color: C.textSec, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descripcion}</td>
+                    <td style={{ padding: '8px 12px', color: C.amarillo, fontWeight: 700, textAlign: 'center' }}>
                       {parseFloat(p.cantidad_vendida)}
                     </td>
-                    <td style={{ padding: '10px 16px', color: C.verde, fontWeight: 700 }}>
+                    <td style={{ padding: '8px 12px', color: C.verde, fontWeight: 700, textAlign: 'center' }}>
                       ${parseFloat(p.total_vendido).toFixed(2)}
                     </td>
-                    <td style={{ padding: '10px 16px', color: C.textDim }}>
+                    <td style={{ padding: '8px 12px', color: C.textDim, textAlign: 'center' }}>
                       {p.num_documentos}
                     </td>
                   </tr>
@@ -157,16 +258,3 @@ export default function ReporteProductos() {
     </div>
   );
 }
-
-const Label = ({ children }) => (
-  <label style={{ color: '#6b7280', fontSize: 11, fontWeight: 600, letterSpacing: 1,
-    display: 'block', marginBottom: 6, textTransform: 'uppercase' }}>
-    {children}
-  </label>
-);
-
-const inputSt = {
-  width: '100%', background: '#fff', border: '1px solid #e5e7eb',
-  borderRadius: 8, padding: '9px 12px', color: '#374151', fontSize: 13,
-  outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
-};
