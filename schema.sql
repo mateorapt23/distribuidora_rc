@@ -91,6 +91,7 @@ CREATE TABLE compras (
     proveedor_nombre VARCHAR(150),
     fecha            DATE           NOT NULL DEFAULT CURRENT_DATE,
     factura_ref      VARCHAR(50),
+    ruc_proveedor    VARCHAR(20),
     subtotal         NUMERIC(12,2)  NOT NULL DEFAULT 0,
     total_iva        NUMERIC(12,2)  NOT NULL DEFAULT 0,
     total            NUMERIC(12,2)  NOT NULL DEFAULT 0,
@@ -102,7 +103,7 @@ CREATE TABLE compras (
 CREATE TABLE compras_detalle (
     id          SERIAL PRIMARY KEY,
     compra_id   INTEGER        NOT NULL REFERENCES compras(id) ON DELETE CASCADE,
-    producto_id INTEGER        NOT NULL REFERENCES productos(id),
+    producto_id INTEGER        REFERENCES productos(id),
     descripcion VARCHAR(255)   NOT NULL,
     cantidad    NUMERIC(12,2)  NOT NULL,
     costo       NUMERIC(12,2)  NOT NULL,
@@ -206,6 +207,7 @@ CREATE INDEX idx_documentos_tipo       ON documentos(tipo);
 CREATE INDEX idx_documentos_fecha      ON documentos(fecha);
 CREATE INDEX idx_movimiento_producto   ON movimiento_stock(producto_id);
 CREATE INDEX idx_compras_fecha         ON compras(fecha);
+CREATE INDEX idx_compras_ruc_proveedor ON compras(ruc_proveedor);
 CREATE INDEX idx_reset_tokens_usuario  ON password_reset_tokens(usuario_id);
 
 -- ============================================================

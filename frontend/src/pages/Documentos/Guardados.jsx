@@ -28,6 +28,7 @@ export default function Guardados({ onVerEnTabla }) {
   const [total, setTotal]                     = useState(0);
   const [page, setPage]                       = useState(1);
   const [filtroTipo, setFiltroTipo]           = useState('');
+  const [filtroFecha, setFiltroFecha]         = useState('');
   const [buscar, setBuscar]                   = useState('');
   const [cargando, setCargando]               = useState(true);
   const [modalVer, setModalVer]               = useState(false);
@@ -54,16 +55,17 @@ export default function Guardados({ onVerEnTabla }) {
     setCargando(true);
     try {
       const params = new URLSearchParams({ page, limit: LIMIT });
-      if (filtroTipo) params.append('tipo', filtroTipo);
-      if (buscar)     params.append('buscar', buscar);
+      if (filtroTipo)  params.append('tipo', filtroTipo);
+      if (filtroFecha) { params.append('fecha_desde', filtroFecha); params.append('fecha_hasta', filtroFecha); }
+      if (buscar)      params.append('buscar', buscar);
       const { data } = await api.get(`/documentos?${params}`);
       setDocumentos(data.data); setTotal(data.total);
     } catch { console.error('Error al cargar documentos'); }
     finally { setCargando(false); }
-  }, [page, filtroTipo, buscar]);
+  }, [page, filtroTipo, filtroFecha, buscar]);
 
   useEffect(() => { cargar(); }, [cargar]);
-  useEffect(() => { setPage(1); }, [filtroTipo, buscar]);
+  useEffect(() => { setPage(1); }, [filtroTipo, filtroFecha, buscar]);
 
   const abrirDetalle = async (doc) => {
     setDocSeleccionado(doc); setCargandoDetalle(true); setModalVer(true);
@@ -352,6 +354,24 @@ export default function Guardados({ onVerEnTabla }) {
           <option value="proforma">Proformas</option>
           <option value="recibo">Notas de entrega</option>
         </select>
+        <input
+          type="date"
+          value={filtroFecha}
+          onChange={e => setFiltroFecha(e.target.value)}
+          style={{ ...inputSt, width: 160, color: filtroFecha ? C.textPrimary : C.textDim }}
+        />
+        {filtroFecha && (
+          <button
+            onClick={() => setFiltroFecha('')}
+            title="Limpiar fecha"
+            style={{
+              background: 'none', border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: '8px 12px', cursor: 'pointer', fontSize: 12,
+              color: C.textDim, display: 'flex', alignItems: 'center', gap: 4,
+            }}>
+            ✕ Fecha
+          </button>
+        )}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
           padding: '9px 16px', fontSize: 13, color: C.textDim, fontWeight: 500 }}>
           {total} documento{total !== 1 ? 's' : ''}

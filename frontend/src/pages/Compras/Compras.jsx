@@ -24,6 +24,7 @@ const IcoEye    = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="no
 const IcoTrash  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>;
 const IcoSave   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
 const IcoClear  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>;
+const IcoSRI    = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
 
 export default function Compras() {
   const { usuario } = useAuth();
@@ -121,13 +122,186 @@ export default function Compras() {
 }
 
 // ══════════════════════════════════════════════════════════
+function ModalSRI({ onImportar, onCerrar }) {
+  const [archivo, setArchivo]   = useState(null);
+  const [cargando, setCargando] = useState(false);
+  const [error, setError]       = useState('');
+  const inputRef                = useRef(null);
+
+  const onSeleccionarArchivo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xml')) {
+      setError('El archivo debe tener extensión .xml');
+      return;
+    }
+    setError('');
+    setArchivo(file);
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xml')) {
+      setError('El archivo debe tener extensión .xml');
+      return;
+    }
+    setError('');
+    setArchivo(file);
+  };
+
+  const parsear = async () => {
+    if (!archivo) { setError('Selecciona un archivo XML primero.'); return; }
+    setError('');
+    setCargando(true);
+    try {
+      const formData = new FormData();
+      formData.append('archivo', archivo);
+      const { data } = await api.post('/compras/sri/xml', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      onImportar(data);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al leer el XML. Verifica que sea una factura electrónica válida.');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 24 }}>
+      <div style={{ background: '#fff', borderRadius: 18, padding: 32, width: '100%', maxWidth: 520,
+        boxShadow: '0 24px 64px rgba(0,0,0,0.18)', border: `1px solid ${C.border}` }}>
+
+        {/* Header del modal */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10,
+                background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IcoSRI />
+              </div>
+              <span style={{ fontSize: 17, fontWeight: 700, color: C.textPrimary }}>
+                Importar XML de factura
+              </span>
+            </div>
+            <p style={{ fontSize: 13, color: C.textDim, margin: 0, lineHeight: 1.6 }}>
+              Sube el archivo <strong>.xml</strong> que te envió tu proveedor junto con la factura electrónica.
+            </p>
+          </div>
+          <button onClick={onCerrar}
+            style={{ background: '#f3f4f6', border: 'none', color: '#6b7280', cursor: 'pointer',
+              borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 16, flexShrink: 0, marginLeft: 16 }}>✕</button>
+        </div>
+
+        {/* Zona de drop */}
+        <div
+          onClick={() => inputRef.current?.click()}
+          onDrop={onDrop}
+          onDragOver={e => e.preventDefault()}
+          style={{
+            border: `2px dashed ${archivo ? C.verde : C.border}`,
+            borderRadius: 12, padding: '28px 20px', marginBottom: 16,
+            textAlign: 'center', cursor: 'pointer', transition: 'all .2s',
+            background: archivo ? '#f0fdf4' : C.bgDeep,
+          }}
+          onMouseEnter={e => { if (!archivo) e.currentTarget.style.borderColor = C.azul; }}
+          onMouseLeave={e => { if (!archivo) e.currentTarget.style.borderColor = C.border; }}
+        >
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xml"
+            style={{ display: 'none' }}
+            onChange={onSeleccionarArchivo}
+          />
+          {archivo ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 28 }}>📄</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: C.verde }}>{archivo.name}</span>
+              <span style={{ fontSize: 12, color: C.textDim }}>
+                {(archivo.size / 1024).toFixed(1)} KB · Click para cambiar
+              </span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 28 }}>📂</span>
+              <span style={{ fontSize: 14, color: C.textSec, fontWeight: 600 }}>
+                Arrastra el XML aquí o haz click para seleccionarlo
+              </span>
+              <span style={{ fontSize: 12, color: C.textDim }}>Solo archivos .xml</span>
+            </div>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10,
+            padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ color: C.rojo, fontSize: 16, flexShrink: 0 }}>⚠</span>
+            <span style={{ fontSize: 13, color: '#b91c1c', lineHeight: 1.5 }}>{error}</span>
+          </div>
+        )}
+
+        {/* Info */}
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10,
+          padding: '12px 16px', marginBottom: 24, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ fontSize: 14, flexShrink: 0 }}>💡</span>
+          <span style={{ fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
+            El proveedor está <strong>obligado por ley</strong> a enviarte el XML con cada factura electrónica,
+            generalmente por correo junto con el RIDE (PDF). Ese mismo archivo es el que debes subir aquí.
+          </span>
+        </div>
+
+        {/* Botones */}
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onCerrar}
+            style={{ background: '#fff', border: `1px solid ${C.border}`, color: C.textSec,
+              borderRadius: 10, padding: '10px 20px', fontWeight: 600, fontSize: 13,
+              cursor: 'pointer', fontFamily: 'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={parsear} disabled={cargando || !archivo}
+            style={{ background: C.azul, border: 'none', color: '#fff', borderRadius: 10,
+              padding: '10px 24px', fontWeight: 700, fontSize: 13,
+              cursor: (cargando || !archivo) ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit', opacity: (cargando || !archivo) ? 0.7 : 1,
+              display: 'flex', alignItems: 'center', gap: 8,
+              boxShadow: '0 2px 8px rgba(59,130,246,0.3)' }}>
+            {cargando ? (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ animation: 'spin 1s linear infinite' }}>
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                </svg>
+                Procesando...
+              </>
+            ) : (
+              <><IcoSRI /> Importar XML</>
+            )}
+          </button>
+        </div>
+
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
 function NuevaCompra({ onGuardado }) {
   const [proveedor, setProveedor]   = useState('');
+  const [ruc, setRuc]               = useState('');
   const [fecha, setFecha]           = useState(new Date().toISOString().split('T')[0]);
   const [facturaRef, setFacturaRef] = useState('');
   const [notas, setNotas]           = useState('');
   const [filas, setFilas]           = useState([filaVacia()]);
   const [guardando, setGuardando]   = useState(false);
+  const [modalSRI, setModalSRI]     = useState(false);
+  const [importadoSRI, setImportadoSRI] = useState(false);
 
   const [sugerencias, setSugerencias] = useState([]);
   const [filaActiva, setFilaActiva]   = useState(null);
@@ -192,12 +366,45 @@ function NuevaCompra({ onGuardado }) {
     }));
   };
 
+  // ── Importar desde SRI ───────────────────────────────────
+  const handleImportarSRI = (datos) => {
+    // Pre-llenar cabecera
+    if (datos.proveedor)   setProveedor(datos.proveedor);
+    if (datos.ruc)         setRuc(datos.ruc);
+    if (datos.fecha)       setFecha(datos.fecha);
+    if (datos.factura_ref) setFacturaRef(datos.factura_ref);
+
+    // Pre-llenar filas con los productos de la factura
+    if (datos.detalle && datos.detalle.length > 0) {
+      const nuevasFilas = datos.detalle.map(item => {
+        const cant = parseFloat(item.cantidad) || 1;
+        const cost = parseFloat(item.costo)    || 0;
+        const iva  = parseFloat(item.iva)       || 0;
+        return {
+          _id:         Math.random(),
+          producto_id: null,
+          codigo:      item.codigo || '',
+          descripcion: item.descripcion || '',
+          cantidad:    cant,
+          costo:       cost,
+          iva:         iva,
+          subtotal:    cant * cost * (1 + iva / 100),
+        };
+      });
+      setFilas(nuevasFilas);
+    }
+
+    setImportadoSRI(true);
+    setModalSRI(false);
+  };
+
   const agregarFila = () => setFilas(prev => [...prev, filaVacia()]);
   const eliminarFila = (id) => { if (filas.length > 1) setFilas(prev => prev.filter(f => f._id !== id)); };
   const limpiar = () => {
     setFilas([filaVacia()]);
-    setProveedor(''); setFecha(new Date().toISOString().split('T')[0]);
+    setProveedor(''); setRuc(''); setFecha(new Date().toISOString().split('T')[0]);
     setFacturaRef(''); setNotas('');
+    setImportadoSRI(false);
   };
 
   const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad) || 0) * (parseFloat(f.costo) || 0), 0);
@@ -215,6 +422,7 @@ function NuevaCompra({ onGuardado }) {
     try {
       await api.post('/compras', {
         proveedor_nombre: proveedor.trim(),
+        ruc_proveedor: ruc.trim(),
         fecha, factura_ref: facturaRef, notas,
         detalle: filasValidas.map(f => ({
           producto_id: f.producto_id,
@@ -234,40 +442,111 @@ function NuevaCompra({ onGuardado }) {
   return (
     <div style={{ padding: '24px 28px' }}>
 
+      {/* Modal SRI */}
+      {modalSRI && <ModalSRI onImportar={handleImportarSRI} onCerrar={() => setModalSRI(false)} />}
+
+      {/* Banner importado desde XML */}
+      {importadoSRI && (
+        <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1px solid #86efac',
+          borderRadius: 12, padding: '10px 16px', marginBottom: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: '#16a34a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div>
+              <span style={{ fontSize: 13, color: '#14532d', fontWeight: 700 }}>XML importado correctamente</span>
+              {proveedor && <span style={{ fontSize: 12, color: '#166534', marginLeft: 8 }}>· {proveedor}{ruc ? ` · RUC ${ruc}` : ''}</span>}
+            </div>
+          </div>
+          <button onClick={() => setImportadoSRI(false)}
+            style={{ background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer',
+              fontSize: 18, lineHeight: 1, padding: 2 }}>✕</button>
+        </div>
+      )}
+
+      {/* Botón importar SRI + Cabecera */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button onClick={() => setModalSRI(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 8,
+            background: 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
+            border: 'none', color: '#fff', borderRadius: 10,
+            padding: '10px 20px', fontWeight: 700, fontSize: 13,
+            cursor: 'pointer', fontFamily: 'inherit',
+            boxShadow: '0 2px 10px rgba(59,130,246,0.35)', transition: 'all .15s' }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+          <IcoSRI />
+          Importar XML del proveedor
+        </button>
+      </div>
+
       {/* Cabecera */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ flex: 2, minWidth: 200 }}>
-          <Label>Proveedor *</Label>
-          <input value={proveedor} onChange={e => setProveedor(e.target.value)}
-            placeholder="Nombre del proveedor" style={inputSt} />
-        </div>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <Label>Fecha</Label>
-          <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inputSt} />
-        </div>
-        <div style={{ flex: 1, minWidth: 150 }}>
-          <Label>Nº Factura / Ref.</Label>
-          <input value={facturaRef} onChange={e => setFacturaRef(e.target.value)}
-            placeholder="Opcional" style={inputSt} />
-        </div>
-        <div style={{ flex: 2, minWidth: 200 }}>
-          <Label>Notas</Label>
-          <input value={notas} onChange={e => setNotas(e.target.value)}
-            placeholder="Observaciones..." style={inputSt} />
+      <div style={{ background: C.bgCard, border: `1px solid ${C.border}`, borderRadius: 14,
+        padding: '20px 22px', marginBottom: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.textDim, letterSpacing: 1.2,
+          textTransform: 'uppercase', marginBottom: 16 }}>Datos del proveedor</div>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          <div style={{ flex: 3, minWidth: 200 }}>
+            <Label>Proveedor *</Label>
+            <input value={proveedor} onChange={e => setProveedor(e.target.value)}
+              placeholder="Nombre del proveedor" style={inputSt} />
+          </div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <Label>RUC / Cédula</Label>
+            <input value={ruc} onChange={e => setRuc(e.target.value)}
+              placeholder="Ej. 1792072018001" style={{ ...inputSt, fontFamily: 'monospace', fontSize: 12 }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <Label>Fecha</Label>
+            <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inputSt} />
+          </div>
+          <div style={{ flex: 1, minWidth: 150 }}>
+            <Label>Nº Factura / Ref.</Label>
+            <input value={facturaRef} onChange={e => setFacturaRef(e.target.value)}
+              placeholder="027-070-000086972" style={{ ...inputSt, fontFamily: 'monospace', fontSize: 12 }} />
+          </div>
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <Label>Notas</Label>
+            <input value={notas} onChange={e => setNotas(e.target.value)}
+              placeholder="Observaciones opcionales..." style={inputSt} />
+          </div>
         </div>
       </div>
 
       {/* Tabla */}
       <div style={{ background: C.bgCard, border: `1px solid ${C.border}`,
-        borderRadius: 12, overflow: 'visible', marginBottom: 16 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        borderRadius: 14, overflow: 'visible', marginBottom: 16,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        <div style={{ padding: '14px 18px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+            Detalle de productos
+          </span>
+          <span style={{ fontSize: 12, color: C.textDim }}>
+            {filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0).length} ítem(s)
+          </span>
+        </div>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 10 }}>
           <thead>
             <tr style={{ background: C.bgDeep }}>
-              {['#', 'Código', 'Descripción', 'Cant.', 'Costo unit.', 'IVA %', 'Subtotal', ''].map(h => (
-                <th key={h} style={{ padding: '12px 14px', color: C.textDim, fontWeight: 600,
-                  fontSize: 11, letterSpacing: 1.2, textAlign: 'left',
-                  borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase' }}>
-                  {h}
+              {[
+                { label: '#',          w: 36  },
+                { label: 'Código',     w: 110 },
+                { label: 'Descripción',w: null },
+                { label: 'Cant.',      w: 80  },
+                { label: 'Costo unit.',w: 110 },
+                { label: 'IVA %',      w: 75  },
+                { label: 'Subtotal',   w: 100 },
+                { label: '',           w: 36  },
+              ].map(({ label, w }) => (
+                <th key={label} style={{ padding: '10px 12px', color: C.textDim, fontWeight: 700,
+                  fontSize: 10, letterSpacing: 1.1, textAlign: label === 'Subtotal' ? 'right' : 'left',
+                  borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase',
+                  ...(w ? { width: w } : {}) }}>
+                  {label}
                 </th>
               ))}
             </tr>
@@ -275,7 +554,7 @@ function NuevaCompra({ onGuardado }) {
           <tbody>
             {filas.map((fila, idx) => (
               <tr key={fila._id} style={{ borderBottom: `1px solid ${C.grid}` }}>
-                <td style={{ padding: '8px 14px', color: C.textDim, fontSize: 12, width: 36 }}>{idx + 1}</td>
+                <td style={{ padding: '7px 12px', color: C.textDim, fontSize: 11, width: 36, textAlign: 'center' }}>{idx + 1}</td>
 
                 {/* Código */}
                 <td style={{ padding: '6px 8px', position: 'relative', width: 120 }}>
@@ -331,9 +610,10 @@ function NuevaCompra({ onGuardado }) {
                     onChange={e => actualizarFila(fila._id, { iva: e.target.value }, true)}
                     style={{ ...celdaInputSt, width: '100%', textAlign: 'center' }} />
                 </td>
-                <td style={{ padding: '6px 14px', textAlign: 'right', color: C.verde,
-                  fontWeight: 700, width: 100, whiteSpace: 'nowrap' }}>
-                  ${parseFloat(fila.subtotal).toFixed(2)}
+                <td style={{ padding: '6px 12px', textAlign: 'right', width: 100, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: C.verde, fontWeight: 700, fontSize: 13 }}>
+                    ${parseFloat(fila.subtotal).toFixed(2)}
+                  </span>
                 </td>
                 <td style={{ padding: '6px 10px', width: 36 }}>
                   <button onClick={() => eliminarFila(fila._id)}
@@ -411,13 +691,7 @@ function NuevaCompra({ onGuardado }) {
               </span>
             </div>
           </div>
-          <div style={{ marginTop: 16, padding: '10px 14px', background: '#f9fafb',
-            borderRadius: 8, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: C.textDim, fontSize: 12 }}>Ítems en la compra</span>
-            <span style={{ color: C.textSec, fontWeight: 700, fontSize: 13 }}>
-              {filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0).length}
-            </span>
-          </div>
+
         </div>
       </div>
     </div>
@@ -488,7 +762,7 @@ function Historial({ esAdmin }) {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: C.bgDeep }}>
-              {['Número', 'Proveedor', 'Factura Ref.', 'Fecha', 'Total', 'Usuario', 'Acciones'].map(h => (
+              {['Número', 'Proveedor', 'RUC', 'Factura Ref.', 'Fecha', 'Total', 'Acciones'].map(h => (
                 <th key={h} style={{ padding: '14px 16px', color: C.textDim, fontWeight: 600,
                   fontSize: 11, letterSpacing: 1.2, textAlign: 'left',
                   borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase' }}>
@@ -499,18 +773,18 @@ function Historial({ esAdmin }) {
           </thead>
           <tbody>
             {cargando ? (
-              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.textDim }}>Cargando...</td></tr>
+              <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: C.textDim }}>Cargando...</td></tr>
             ) : compras.length === 0 ? (
-              <tr><td colSpan={7} style={{ padding: 40, textAlign: 'center', color: C.textDim }}>No hay compras registradas</td></tr>
+              <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: C.textDim }}>No hay compras registradas</td></tr>
             ) : compras.map((c, i) => (
               <tr key={c.id} style={{ borderBottom: `1px solid ${C.grid}`,
                 background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
-                <td style={{ padding: '12px 16px', color: C.verde, fontFamily: 'monospace', fontWeight: 700 }}>{c.numero}</td>
-                <td style={{ padding: '12px 16px', color: C.textSec }}>{c.proveedor_nombre}</td>
-                <td style={{ padding: '12px 16px', color: C.textDim, fontSize: 12 }}>{c.factura_ref || '—'}</td>
+                <td style={{ padding: '12px 16px', color: C.azul, fontFamily: 'monospace', fontWeight: 700, fontSize: 12 }}>{c.numero}</td>
+                <td style={{ padding: '12px 16px', color: C.textPrimary, fontWeight: 500 }}>{c.proveedor_nombre}</td>
+                <td style={{ padding: '12px 16px', color: C.textDim, fontFamily: 'monospace', fontSize: 12 }}>{c.ruc_proveedor || '—'}</td>
+                <td style={{ padding: '12px 16px', color: C.textDim, fontFamily: 'monospace', fontSize: 12 }}>{c.factura_ref || '—'}</td>
                 <td style={{ padding: '12px 16px', color: C.textDim, fontSize: 13 }}>{c.fecha?.slice(0, 10)}</td>
-                <td style={{ padding: '12px 16px', color: C.verde, fontWeight: 700 }}>${parseFloat(c.total).toFixed(2)}</td>
-                <td style={{ padding: '12px 16px', color: C.textDim, fontSize: 12 }}>{c.usuario_nombre || '—'}</td>
+                <td style={{ padding: '12px 16px' }}><span style={{ background: '#f0fdf4', color: C.verde, fontWeight: 700, fontSize: 13, padding: '3px 10px', borderRadius: 6 }}>${parseFloat(c.total).toFixed(2)}</span></td>
                 <td style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <BtnSm color={C.azul} onClick={() => abrirDetalle(c)} icon={<IcoEye />}>Ver</BtnSm>
@@ -548,18 +822,24 @@ function Historial({ esAdmin }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
-            <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+              gap: 16, marginBottom: 20, padding: '16px', background: C.bgDeep,
+              borderRadius: 10, border: `1px solid ${C.border}` }}>
               {[
-                { label: 'Proveedor',   valor: compraSeleccionada.proveedor_nombre },
-                { label: 'Factura Ref', valor: compraSeleccionada.factura_ref || '—' },
-                { label: 'Fecha',       valor: compraSeleccionada.fecha?.slice(0, 10) },
-              ].map(({ label, valor }) => (
+                { label: 'Proveedor',   valor: compraSeleccionada.proveedor_nombre, mono: false },
+                { label: 'RUC',         valor: compraSeleccionada.ruc_proveedor || '—', mono: true },
+                { label: 'Factura Ref', valor: compraSeleccionada.factura_ref || '—', mono: true },
+                { label: 'Fecha',       valor: compraSeleccionada.fecha?.slice(0, 10), mono: false },
+              ].map(({ label, valor, mono }) => (
                 <div key={label}>
                   <div style={{ color: C.textDim, fontSize: 10, fontWeight: 700, letterSpacing: 1.2,
-                    textTransform: 'uppercase', marginBottom: 3 }}>
+                    textTransform: 'uppercase', marginBottom: 4 }}>
                     {label}
                   </div>
-                  <div style={{ color: C.textSec, fontSize: 14 }}>{valor}</div>
+                  <div style={{ color: C.textPrimary, fontSize: 13, fontWeight: 600,
+                    fontFamily: mono ? 'monospace' : 'inherit' }}>
+                    {valor}
+                  </div>
                 </div>
               ))}
             </div>

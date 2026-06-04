@@ -1,6 +1,11 @@
 const express = require('express');
 const multer  = require('multer');
-const upload  = multer({ dest: 'uploads/' });
+
+// ── Multer disk storage (para archivos Excel de importación) ──────────────
+const upload = multer({ dest: 'uploads/' });
+
+// ── Multer memory storage (para XML del SRI — no necesita persistirse) ───
+const uploadMemory = multer({ storage: multer.memoryStorage() });
 
 const { verificarToken, soloAdmin } = require('../middleware/auth');
 
@@ -23,6 +28,7 @@ const {
   exportarExcel: exportarClientes,
 } = require('../controllers/clientesController');
 const { listar: listarLogs, listarUsuariosLog } = require('../controllers/logsController');
+const { parsearXMLFactura } = require('../controllers/sriController'); // ← ACTUALIZADO
 
 // ── AUTH ──────────────────────────────────────────────────
 const authRouter = express.Router();
@@ -50,11 +56,11 @@ clientesRouter.use(verificarToken);
 clientesRouter.get('/buscar',           buscarClientes);
 clientesRouter.get('/exportar',         exportarClientes);
 clientesRouter.get('/',                 listarClientes);
-clientesRouter.get('/:id',              obtenerCliente);
+clientesRouter.get('/:id',             obtenerCliente);
 clientesRouter.post('/importar',        upload.single('archivo'), importarClientes);
 clientesRouter.post('/',                crearCliente);
-clientesRouter.put('/:id',              actualizarCliente);
-clientesRouter.delete('/:id',           soloAdmin, eliminarCliente);
+clientesRouter.put('/:id',             actualizarCliente);
+clientesRouter.delete('/:id',          soloAdmin, eliminarCliente);
 
 // ── DOCUMENTOS ────────────────────────────────────────────
 const documentosRouter = express.Router();
@@ -64,17 +70,18 @@ documentosRouter.get('/:id',            obtenerDoc);
 documentosRouter.post('/pdf',           generarPDF);
 documentosRouter.post('/captura',       generarCaptura);
 documentosRouter.post('/',              crearDoc);
-documentosRouter.put('/:id',            actualizarDoc);
+documentosRouter.put('/:id',           actualizarDoc);
 documentosRouter.post('/:id/convertir', convertirARecibo);
 documentosRouter.delete('/:id',         soloAdmin, eliminarDoc);
 
 // ── COMPRAS ───────────────────────────────────────────────
 const comprasRouter = express.Router();
 comprasRouter.use(verificarToken);
-comprasRouter.get('/',       listarComp);
-comprasRouter.get('/:id',    obtenerComp);
-comprasRouter.post('/',      crearComp);
-comprasRouter.delete('/:id', soloAdmin, eliminarComp);
+comprasRouter.get('/',                          listarComp);
+comprasRouter.get('/:id',                       obtenerComp);
+comprasRouter.post('/sri/xml',                  uploadMemory.single('archivo'), parsearXMLFactura); // ← ACTUALIZADO
+comprasRouter.post('/',                         crearComp);
+comprasRouter.delete('/:id',                    soloAdmin, eliminarComp);
 
 // ── USUARIOS ──────────────────────────────────────────────
 const usuariosRouter = express.Router();
@@ -106,8 +113,8 @@ facturasEfRouter.delete('/:id',     eliminarFacEf);
 
 // ── LOGS DE ACTIVIDAD ─────────────────────────────────────
 const logsRouter = express.Router();
-logsRouter.use(verificarToken, soloAdmin);        // solo admin puede ver logs
-logsRouter.get('/usuarios', listarUsuariosLog);   // lista de usuarios para el filtro
+logsRouter.use(verificarToken, soloAdmin);
+logsRouter.get('/usuarios', listarUsuariosLog);
 logsRouter.get('/',         listarLogs);
 
 module.exports = {

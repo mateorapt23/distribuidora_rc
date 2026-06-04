@@ -54,13 +54,14 @@ const Th = ({ label, col, sortCol, sortDir, onSort, align, width }) => {
   const active = sortCol === col;
   return (
     <th onClick={() => onSort(col)} style={{
-      padding: '12px 16px', color: active ? C.azul : C.textDim, fontWeight: 600,
+      padding: '12px 14px', color: active ? C.azul : C.textDim, fontWeight: 600,
       fontSize: 11, letterSpacing: 1.1, textAlign: align || 'left',
       borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase',
       cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
       width: width || 'auto',
     }}>
       <span style={{ display: 'flex', alignItems: 'center', justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
+        {align === 'center' && <span style={{ width: 16, flexShrink: 0 }} />}
         {label}
         <IcoSort dir={active ? sortDir : null} />
       </span>
