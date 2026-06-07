@@ -12,7 +12,7 @@ const { verificarToken, soloAdmin } = require('../middleware/auth');
 const { login, perfil, solicitarRecuperacion, verificarCodigo, nuevaPassword } = require('../controllers/authController');
 const { listar: listarProd, obtener: obtenerProd, crear: crearProd, actualizar: actualizarProd, eliminar: eliminarProd, ajusteStock, importarExcel, exportarExcel } = require('../controllers/productosController');
 const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: actualizarDoc, convertirARecibo, eliminar: eliminarDoc } = require('../controllers/documentosController');
-const { listar: listarComp, obtener: obtenerComp, crear: crearComp, eliminar: eliminarComp } = require('../controllers/comprasController');
+const { listar: listarComp, obtener: obtenerComp, crear: crearComp, actualizar: actualizarComp, eliminar: eliminarComp } = require('../controllers/comprasController');
 const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
 const { resumen, reporteVentas, productosMasVendidos, movimientos } = require('../controllers/dashboardController');
 const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf } = require('../controllers/facturasEfController');
@@ -81,6 +81,7 @@ comprasRouter.get('/',                          listarComp);
 comprasRouter.get('/:id',                       obtenerComp);
 comprasRouter.post('/sri/xml',                  uploadMemory.single('archivo'), parsearXMLFactura); // ← ACTUALIZADO
 comprasRouter.post('/',                         crearComp);
+comprasRouter.put('/:id',                       soloAdmin, actualizarComp);
 comprasRouter.delete('/:id',                    soloAdmin, eliminarComp);
 
 // ── USUARIOS ──────────────────────────────────────────────
