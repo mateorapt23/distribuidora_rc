@@ -20,23 +20,23 @@ const NAV_SECTIONS = [
   {
     label: 'Principal',
     items: [
-      { to: '/dashboard',   label: 'Dashboard',          icon: 'dashboard' },
-      { to: '/productos',   label: 'Productos',           icon: 'productos' },
-      { to: '/clientes',    label: 'Clientes',            icon: 'clientes'  },
+      { to: '/dashboard', label: 'Dashboard',          icon: 'dashboard', roles: ['admin'] },
+      { to: '/productos', label: 'Productos',           icon: 'productos' },
+      { to: '/clientes',  label: 'Clientes',            icon: 'clientes',  roles: ['admin'] },
     ],
   },
   {
     label: 'Operaciones',
     items: [
-      { to: '/documentos',   label: 'Proformas / Recibos', icon: 'documentos' },
-      { to: '/compras',      label: 'Compras',             icon: 'compras' },
-      { to: '/facturas-ef',  label: 'Facturas Efacilito',  icon: 'facturas' },
+      { to: '/documentos',  label: 'Proformas / Recibos', icon: 'documentos' },
+      { to: '/compras',     label: 'Compras',             icon: 'compras',   roles: ['admin'] },
+      { to: '/facturas-ef', label: 'Facturas Efacilito',  icon: 'facturas',  roles: ['admin'] },
     ],
   },
   {
     label: 'Análisis',
     items: [
-      { to: '/reportes', label: 'Reportes', icon: 'reportes' },
+      { to: '/reportes', label: 'Reportes', icon: 'reportes', roles: ['admin'] },
     ],
   },
 ];
@@ -169,6 +169,12 @@ export default function Layout({ children }) {
     ? usuario.nombre.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
 
+  // Filtrar secciones y items según el rol del usuario
+  const navSectionsVisibles = NAV_SECTIONS.map(section => ({
+    ...section,
+    items: section.items.filter(item => !item.roles || item.roles.includes(usuario?.rol)),
+  })).filter(section => section.items.length > 0);
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb', position: 'relative' }}>
 
@@ -252,7 +258,7 @@ export default function Layout({ children }) {
 
         {/* Nav */}
         <div style={{ flex: 1, padding: '10px 0', overflow: 'hidden' }}>
-          {NAV_SECTIONS.map(section => (
+          {navSectionsVisibles.map(section => (
             <div key={section.label} style={{ marginBottom: 4 }}>
               <div style={{
                 fontSize: 9, fontWeight: 700, color: S.label,

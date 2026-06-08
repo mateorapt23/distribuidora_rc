@@ -16,8 +16,15 @@ import Actividad from './pages/Actividad/Actividad';
 const RutaProtegida = ({ children, soloAdmin = false }) => {
   const { usuario } = useAuth();
   if (!usuario) return <Navigate to="/login" replace />;
-  if (soloAdmin && usuario.rol !== 'admin') return <Navigate to="/dashboard" replace />;
+  const inicio = usuario.rol === 'admin' ? '/dashboard' : '/productos';
+  if (soloAdmin && usuario.rol !== 'admin') return <Navigate to={inicio} replace />;
   return <Layout>{children}</Layout>;
+};
+
+// Redirige al inicio correcto según el rol
+const RedireccionInicio = () => {
+  const { usuario } = useAuth();
+  return <Navigate to={usuario?.rol === 'admin' ? '/dashboard' : '/productos'} replace />;
 };
 
 function App() {
@@ -26,22 +33,22 @@ function App() {
       <Route path="/login"               element={<Login />} />
       <Route path="/recuperar-password"  element={<RecuperarPassword />} />
       <Route path="/dashboard" element={
-        <RutaProtegida><Dashboard /></RutaProtegida>
+        <RutaProtegida soloAdmin><Dashboard /></RutaProtegida>
       } />
       <Route path="/productos" element={
         <RutaProtegida><Productos /></RutaProtegida>
       } />
       <Route path="/clientes" element={
-        <RutaProtegida><Clientes /></RutaProtegida>
+        <RutaProtegida soloAdmin><Clientes /></RutaProtegida>
       } />
       <Route path="/documentos" element={
         <RutaProtegida><Documentos /></RutaProtegida>
       } />
       <Route path="/compras" element={
-        <RutaProtegida><Compras /></RutaProtegida>
+        <RutaProtegida soloAdmin><Compras /></RutaProtegida>
       } />
       <Route path="/facturas-ef" element={
-        <RutaProtegida><FacturasEfacilito /></RutaProtegida>
+        <RutaProtegida soloAdmin><FacturasEfacilito /></RutaProtegida>
       } />
       <Route path="/reportes" element={
         <RutaProtegida soloAdmin><Reportes /></RutaProtegida>
@@ -52,7 +59,7 @@ function App() {
       <Route path="/actividad" element={
         <RutaProtegida soloAdmin><Actividad /></RutaProtegida>
       } />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<RedireccionInicio />} />
     </Routes>
   );
 }
