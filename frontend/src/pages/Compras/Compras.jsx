@@ -321,6 +321,75 @@ function ModalSRI({ onImportar, onCerrar }) {
   );
 }
 
+// ── Scoring bidireccional para matching de productos ──────
+
+// Palabras vacías en español que no aportan significado al match
+const STOPWORDS = new Set([
+  'del','con','por','los','las','que','una','uno','mas','sin','son','hay','muy',
+  'nos','sus','les','ese','esa','eso','esta','este','pero','como','para','desde',
+  'hasta','entre','sobre','bajo','ante','cada','cuyo','cual','todo','toda','todos',
+  'todas','otro','otra','otros','otras','cualquier','cualquiera','algún','alguna',
+  'ningun','ninguna','propio','propia','mismo','misma','dicho','dicha','sea','ser',
+  'fue','han','has','era','sin','tras','bajo','aun','aún','bien','mal','ahi','aca',
+]);
+
+const _norm = (s) => s.toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9\s]/g, ' ').trim();
+
+// Solo tokens >= 3 chars y que no sean palabras vacías
+const _tok = (s) => _norm(s).split(/\s+/).filter(t => t.length >= 3 && !STOPWORDS.has(t));
+
+const calcularScoreBidireccional = (query, descripcion) => {
+  if (!query || !descripcion) return 0;
+  const tQ = _tok(query);
+  const tD = _tok(descripcion);
+  if (tQ.length === 0 || tD.length === 0) return 0;
+
+  let score   = 0;
+  let qHits   = 0; // cuántos tokens del query tuvieron algún match
+
+  // ① Forward: tokens del query que aparecen en la descripción del producto
+  tQ.forEach((q, i) => {
+    const w = Math.max(0.4, 1 - i * 0.12); // primeras palabras pesan más
+    for (const d of tD) {
+      if (d === q)                          { score += 2.2 * w; qHits++; break; }  // exacto
+      if (d.startsWith(q)||q.startsWith(d)) { score += 1.1 * w; qHits++; break; }  // prefijo
+      if (d.includes(q) || q.includes(d))  { score += 0.5 * w; qHits++; break; }  // substring
+    }
+  });
+
+  // ② Verificación de cobertura mínima obligatoria
+  // Si la fracción de tokens del query que coincidieron es muy baja,
+  // el producto no tiene relación real → descartar inmediatamente
+  //   1 token  → debe coincidir el 100 %
+  //   2-3 tok  → al menos el 50 % (mínimo 1)
+  //   4-6 tok  → al menos el 40 % (mínimo 2)
+  //   7+ tok   → al menos el 30 % (mínimo 3)
+  const minCoverage = tQ.length === 1 ? 1.0
+    : tQ.length <= 3 ? 0.50
+    : tQ.length <= 6 ? 0.40
+    : 0.30;
+
+  if (qHits / tQ.length < minCoverage) return 0;   // ← sin relación, no mostrar
+
+  // ③ Backward: tokens de la descripción que aparecen en el query
+  tD.forEach((d, i) => {
+    const w = Math.max(0.3, 1 - i * 0.1);
+    for (const q of tQ) {
+      if (q === d)                          { score += 1.6 * w; break; }
+      if (q.startsWith(d)||d.startsWith(q)) { score += 0.7 * w; break; }
+      if (q.includes(d) || d.includes(q))  { score += 0.3 * w; break; }
+    }
+  });
+
+  // ④ Bonus: frase completa contenida en la descripción
+  if (_norm(descripcion).includes(_norm(query))) score += 3.0;
+
+  // Normalizar por longitud combinada para evitar sesgo hacia productos más largos
+  return score / Math.sqrt(tQ.length + tD.length) * 2;
+};
+
 // ══════════════════════════════════════════════════════════
 function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   const [proveedor, setProveedor]   = useState('');
@@ -449,14 +518,44 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
     setFilas(nuevasFilas);
     setVinculacionXML({});
 
-    // Buscar sugerencias de inventario para cada ítem
+    // Buscar sugerencias de inventario para cada ítem (búsqueda bidireccional con scoring)
     const sugs = {};
     for (const fila of nuevasFilas) {
-      if (fila.descripcion && fila.descripcion.length >= 3) {
+      if (fila.descripcion && fila.descripcion.length >= 2) {
         try {
-          const palabras = fila.descripcion.split(' ').slice(0, 3).join(' ');
-          const { data } = await api.get(`/productos/buscar?q=${encodeURIComponent(palabras)}&limit=5`);
-          if (data.data?.length > 0) sugs[fila._id] = data.data;
+          const tokens = fila.descripcion.trim().split(/\s+/).filter(p => p.length >= 2);
+          if (tokens.length === 0) continue;
+
+          // Queries: cada token individual + frases cortas (sin duplicados)
+          const queries = [...new Set([
+            ...tokens,
+            tokens.slice(0, 2).join(' '),
+            tokens.slice(0, 3).join(' '),
+          ])];
+
+          // Búsqueda paralela — todos los queries a la vez
+          const sets = await Promise.all(
+            queries.map(q =>
+              api.get(`/productos/buscar?q=${encodeURIComponent(q)}&limit=15`)
+                .then(r => r.data.data || [])
+                .catch(() => [])
+            )
+          );
+
+          // Deduplicar y puntuar con score bidireccional
+          const mapa = new Map();
+          sets.flat().forEach(prod => {
+            if (!mapa.has(prod.id)) mapa.set(prod.id, { ...prod, _score: 0 });
+            const s = calcularScoreBidireccional(fila.descripcion, prod.descripcion);
+            if (s > mapa.get(prod.id)._score) mapa.get(prod.id)._score = s;
+          });
+
+          const ordenados = [...mapa.values()]
+            .filter(p => p._score > 0)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 8);
+
+          if (ordenados.length > 0) sugs[fila._id] = ordenados;
         } catch { /* ignorar errores de búsqueda */ }
       }
     }
@@ -1021,26 +1120,33 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
   const [buscandoXML, setBuscandoXML] = useState(false);
   const busqTimeout = useRef(null);
 
-  // Búsqueda manual en el dropdown XML — por palabras sueltas para encontrar
-  // "ARENA CARRETILLAS" cuando el usuario escribe "CARRETILLAS ARENA"
+  // Búsqueda manual con scoring bidireccional
   const buscarEnInventario = useCallback(async (texto) => {
     if (!texto || texto.trim().length < 2) { setResBusqXML([]); return; }
     setBuscandoXML(true);
     try {
-      // Buscar con cada palabra de forma individual y combinar resultados únicos
-      const palabras = texto.trim().split(/\s+/).filter(p => p.length >= 2);
+      const tokens = texto.trim().split(/\s+/).filter(p => p.length >= 2);
+      const queries = [...new Set([...tokens, tokens.slice(0, 2).join(' ')])];
+
       const sets = await Promise.all(
-        palabras.map(p => api.get(`/productos/buscar?q=${encodeURIComponent(p)}&limit=8`).then(r => r.data.data || []))
+        queries.map(q =>
+          api.get(`/productos/buscar?q=${encodeURIComponent(q)}&limit=12`)
+            .then(r => r.data.data || [])
+            .catch(() => [])
+        )
       );
-      // Unir y deduplicar por id, ordenar por cuántas palabras matchean (más = primero)
+
       const mapa = new Map();
-      sets.forEach((res, pi) => {
-        res.forEach(prod => {
-          if (!mapa.has(prod.id)) mapa.set(prod.id, { ...prod, _hits: 0 });
-          mapa.get(prod.id)._hits++;
-        });
+      sets.flat().forEach(prod => {
+        if (!mapa.has(prod.id)) mapa.set(prod.id, { ...prod, _score: 0 });
+        const s = calcularScoreBidireccional(texto, prod.descripcion);
+        if (s > mapa.get(prod.id)._score) mapa.get(prod.id)._score = s;
       });
-      const ordenados = [...mapa.values()].sort((a, b) => b._hits - a._hits).slice(0, 8);
+
+      const ordenados = [...mapa.values()]
+        .filter(p => p._score > 0)
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 8);
       setResBusqXML(ordenados);
     } catch { setResBusqXML([]); }
     finally { setBuscandoXML(false); }
@@ -1196,10 +1302,19 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                   borderRadius: 7, padding: '5px 8px', fontSize: 11,
                   color: sugerenciasXML.length > 0 ? D.gold : '#9ca3af',
                   cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
-                  textAlign: 'left', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {sugerenciasXML.length > 0
-                  ? <>{Ico.search} {sugerenciasXML.length} similares</>
-                  : <span style={{ fontSize: 10 }}>Vincular...</span>}
+                  textAlign: 'left', display: 'flex', alignItems: 'center', gap: 5 }}>
+                {sugerenciasXML.length > 0 ? (
+                  <>
+                    <span style={{
+                      background: D.gold, color: '#0A0C10',
+                      borderRadius: 10, padding: '1px 6px',
+                      fontSize: 10, fontWeight: 800, flexShrink: 0, lineHeight: 1.6,
+                    }}>{sugerenciasXML.length}</span>
+                    <span style={{ fontSize: 10.5 }}>Vincular...</span>
+                  </>
+                ) : (
+                  <span style={{ fontSize: 10, color: '#9ca3af' }}>Vincular...</span>
+                )}
               </button>
 
               {mostrarSugsXML && (
@@ -1220,7 +1335,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                         autoFocus
                         value={busqXML}
                         onChange={e => onBusqXMLChange(e.target.value)}
-                        placeholder="Buscar producto..."
+                        placeholder="Refinar búsqueda..."
                         style={{ ...inp, paddingLeft: 28, padding: '6px 8px 6px 26px',
                           fontSize: 12, background: '#f9fafb', borderRadius: 7 }}
                         onKeyDown={e => { if (e.key === 'Escape') setMostrarSugsXML(false); }}
@@ -1235,7 +1350,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                       <>
                         <div style={{ padding: '6px 12px', fontSize: 9.5, fontWeight: 700,
                           color: '#9ca3af', letterSpacing: 1, textTransform: 'uppercase' }}>
-                          Sugerencias automáticas
+                          Más similares
                         </div>
                         {sugerenciasXML.map(p => (
                           <div key={p.id} className="sugg-row"
@@ -1295,7 +1410,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                     {!busqXML && sugerenciasXML.length === 0 && (
                       <div style={{ padding: '14px 12px', textAlign: 'center',
                         color: '#9ca3af', fontSize: 12 }}>
-                        Escribe para buscar
+                        Escribe para buscar en inventario
                       </div>
                     )}
                   </div>
@@ -1703,6 +1818,18 @@ function Historial({ esAdmin, onCargarEnNueva }) {
                   </div>
                 </div>
               ))}
+              {compraSeleccionada.notas && (
+                <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb',
+                  paddingTop: 14, marginTop: 4 }}>
+                  <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700,
+                    letterSpacing: 1.1, textTransform: 'uppercase', marginBottom: 6 }}>
+                    Notas
+                  </div>
+                  <div style={{ color: '#374151', fontSize: 13.5, fontWeight: 500, lineHeight: 1.6 }}>
+                    {compraSeleccionada.notas}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Detalle items */}
