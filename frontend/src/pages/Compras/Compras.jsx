@@ -969,18 +969,18 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
 // ── Cabecera de tabla de ítems ─────────────────────────────
 function TablaHeader({ modoXML, todosM, algunoM, toggleTodos }) {
   const cols = modoXML
-    ? '30px 120px 1fr 90px 130px 80px 120px 110px 170px 36px'
-    : '30px 120px 1fr 90px 130px 80px 120px 110px 36px';
+    ? '28px 110px 1fr 70px 95px 66px 78px 100px 155px 30px'
+    : '28px 110px 1fr 70px 95px 66px 78px 100px 30px';
   const headers = modoXML
     ? ['#','Código','Descripción','Cant.','Costo unit.','IVA %','Subtotal',null,'Vincular producto','']
     : ['#','Código','Descripción','Cant.','Costo unit.','IVA %','Subtotal',null,''];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: cols,
-      gap: 8, padding: '10px 16px',
+      gap: 8, padding: '10px 20px',
       borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
       {headers.map((h, i) => {
         if (h === null) return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', justifyContent: 'center' }}
             title="Marcar para guardar en inventario de productos"
             onClick={toggleTodos}>
             <div style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0,
@@ -994,14 +994,14 @@ function TablaHeader({ modoXML, todosM, algunoM, toggleTodos }) {
             <span style={{ fontSize: 9.5, fontWeight: 700,
               color: algunoM ? D.teal : '#9ca3af',
               letterSpacing: .8, textTransform: 'uppercase', lineHeight: 1.2 }}>
-              A inventario
+              Inventario
             </span>
           </div>
         );
         return (
           <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af',
             letterSpacing: 1.1, textTransform: 'uppercase',
-            textAlign: i >= 3 && i <= 6 ? 'right' : 'left' }}>
+            textAlign: i === 0 ? 'center' : i === 4 ? 'right' : (i === 3 || i === 5 || i === 6) ? 'center' : 'left' }}>
             {h}
           </div>
         );
@@ -1060,8 +1060,8 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
   // El grid siempre incluye la columna del checkbox (col 8).
   // En modo XML se agrega la columna Vincular (col 9) antes del botón eliminar.
   const gridCols = modoXML
-    ? '30px 120px 1fr 90px 130px 80px 120px 110px 170px 36px'
-    : '30px 120px 1fr 90px 130px 80px 120px 110px 36px';
+    ? '28px 110px 1fr 70px 95px 66px 78px 100px 155px 30px'
+    : '28px 110px 1fr 70px 95px 66px 78px 100px 30px';
 
   return (
     <div className="item-card row-fade"
@@ -1139,7 +1139,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
       </div>
 
       {/* Subtotal */}
-      <div style={{ textAlign: 'right', paddingRight: 2 }}>
+      <div style={{ textAlign: 'center' }}>
         <span style={{ fontSize: 13.5, fontWeight: 700, color: D.teal }}>
           ${parseFloat(fila.subtotal).toFixed(2)}
         </span>
