@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/config';
 
 const ICONS = {
   dashboard: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg>,
@@ -134,6 +135,33 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(true);
+
+  // ── Toast stock bajo ───────────────────────────────────────────────────
+  const [alertasStock, setAlertasStock]   = useState([]);
+  const [toastVisible, setToastVisible]   = useState(false);
+  const [toastOpaque,  setToastOpaque]    = useState(false);
+  const toastTimer = useRef(null);
+
+  useEffect(() => {
+    api.get('/dashboard/alertas-stock')
+      .then(r => setAlertasStock(r.data.alertas || []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (alertasStock.length === 0) return;
+    setToastVisible(true);
+    const enterTimer = setTimeout(() => setToastOpaque(true), 20);
+    toastTimer.current = setTimeout(() => cerrarToast(), 9000);
+    return () => { clearTimeout(enterTimer); clearTimeout(toastTimer.current); };
+  }, [alertasStock]);
+
+  const cerrarToast = () => {
+    clearTimeout(toastTimer.current);
+    setToastOpaque(false);
+    setTimeout(() => setToastVisible(false), 380);
+  };
+  // ──────────────────────────────────────────────────────────────────────
 
   const handleLogout = (e) => { e.stopPropagation(); logout(); navigate('/login'); };
 
@@ -332,6 +360,125 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+
+      {/* ── Toast flotante: stock bajo ── */}
+      {toastVisible && (
+        <div style={{
+          position: 'fixed',
+          top: 8,
+          right: 20,
+          width: 310,
+          zIndex: 9999,
+          background: '#ffffff',
+          borderRadius: 12,
+          borderLeft: '4px solid #ef4444',
+          boxShadow: '0 10px 36px rgba(0,0,0,0.13), 0 2px 8px rgba(239,68,68,0.10)',
+          overflow: 'hidden',
+          opacity: toastOpaque ? 1 : 0,
+          transform: toastOpaque ? 'translateX(0) scale(1)' : 'translateX(28px) scale(0.97)',
+          transition: 'opacity 0.35s ease, transform 0.35s ease',
+          pointerEvents: toastOpaque ? 'auto' : 'none',
+        }}>
+
+          {/* Cabecera */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '11px 12px 9px 14px',
+          }}>
+            <div style={{ color: '#ef4444', flexShrink: 0, display: 'flex' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flex: 1 }}>
+              Stock bajo detectado
+            </span>
+            {/* Badge contador */}
+            <span style={{
+              background: '#FEE2E2', color: '#ef4444',
+              fontSize: 11, fontWeight: 700,
+              padding: '2px 8px', borderRadius: 20,
+            }}>
+              {alertasStock.length} {alertasStock.length === 1 ? 'producto' : 'productos'}
+            </span>
+            {/* Botón cerrar */}
+            <button
+              onClick={cerrarToast}
+              title="Cerrar"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#9ca3af', padding: '2px 2px 2px 6px',
+                display: 'flex', alignItems: 'center', borderRadius: 4,
+                transition: 'color .15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+              onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Separador */}
+          <div style={{ height: 1, background: '#f3f4f6', margin: '0 14px' }} />
+
+          {/* Lista de productos */}
+          <div style={{ padding: '8px 14px 12px' }}>
+            {alertasStock.slice(0, 5).map((p, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '5px 0',
+                borderBottom: i < Math.min(alertasStock.length, 5) - 1
+                  ? '1px solid #f9fafb' : 'none',
+              }}>
+                <span style={{
+                  fontSize: 12.5, color: '#374151',
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap', maxWidth: 195,
+                }}>
+                  {p.descripcion}
+                </span>
+                <span style={{
+                  fontSize: 11.5, fontWeight: 700, color: '#ef4444',
+                  background: '#FFF5F5', padding: '2px 8px',
+                  borderRadius: 20, marginLeft: 8, flexShrink: 0,
+                }}>
+                  {p.stock} und.
+                </span>
+              </div>
+            ))}
+            {alertasStock.length > 5 && (
+              <div style={{ fontSize: 11.5, color: '#9ca3af', marginTop: 6, paddingTop: 4 }}>
+                +{alertasStock.length - 5} productos más con stock bajo
+              </div>
+            )}
+          </div>
+
+          {/* Barra de progreso auto-cierre */}
+          <div style={{ height: 3, background: '#FEE2E2' }}>
+            <div style={{
+              height: '100%', background: '#ef4444',
+              animation: 'stockToastProgress 9s linear forwards',
+            }} />
+          </div>
+        </div>
+      )}
+
+      {/* Keyframe para la barra de progreso */}
+      <style>{`
+        @keyframes stockToastProgress {
+          from { width: 100%; }
+          to   { width: 0%; }
+        }
+      `}</style>
+
     </div>
   );
 }

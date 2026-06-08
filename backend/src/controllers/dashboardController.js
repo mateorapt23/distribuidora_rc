@@ -161,4 +161,28 @@ const movimientos = async (req, res) => {
   }
 };
 
-module.exports = { resumen, reporteVentas, productosMasVendidos, movimientos };
+const alertasStock = async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT p.codigo, p.descripcion, p.stock, p.stock_minimo
+      FROM productos p
+      WHERE p.activo = TRUE
+        AND p.inventariable = TRUE
+        AND p.stock <= 5
+        AND EXISTS (
+          SELECT 1 FROM movimiento_stock ms
+          WHERE ms.producto_id = p.id
+            AND ms.tipo IN ('entrada_compra', 'ajuste_manual')
+            AND ms.cantidad > 0
+        )
+      ORDER BY p.stock ASC
+      LIMIT 20
+    `);
+    res.json({ alertas: rows, total: rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener alertas de stock' });
+  }
+};
+
+module.exports = { resumen, reporteVentas, productosMasVendidos, movimientos, alertasStock };

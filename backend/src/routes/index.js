@@ -14,7 +14,7 @@ const { listar: listarProd, obtener: obtenerProd, crear: crearProd, actualizar: 
 const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: actualizarDoc, convertirARecibo, eliminar: eliminarDoc } = require('../controllers/documentosController');
 const { listar: listarComp, obtener: obtenerComp, crear: crearComp, actualizar: actualizarComp, eliminar: eliminarComp } = require('../controllers/comprasController');
 const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
-const { resumen, reporteVentas, productosMasVendidos, movimientos } = require('../controllers/dashboardController');
+const { resumen, reporteVentas, productosMasVendidos, movimientos, alertasStock } = require('../controllers/dashboardController');
 const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf } = require('../controllers/facturasEfController');
 const { generarPDF, generarCaptura } = require('../controllers/pdfController');
 const {
@@ -98,6 +98,7 @@ usuariosRouter.delete('/:id', eliminarUs);
 const dashboardRouter = express.Router();
 dashboardRouter.use(verificarToken);
 dashboardRouter.get('/', resumen);
+dashboardRouter.get('/alertas-stock', alertasStock);
 
 // ── REPORTES ──────────────────────────────────────────────
 const reportesRouter = express.Router();
