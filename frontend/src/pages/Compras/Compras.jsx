@@ -36,6 +36,7 @@ const filaVacia = () => ({
   costo: 0,
   iva: 0,
   subtotal: 0,
+  guardarEnInventario: false,
 });
 
 // ── Icons ──────────────────────────────────────────────────
@@ -335,6 +336,12 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   const [editandoNumero, setEditandoNumero] = useState('');
   const [sugerencias, setSugerencias] = useState([]);
   const [filaActiva, setFilaActiva]   = useState(null);
+  // Modal de precios pre-guardado
+  const [modalPrecios, setModalPrecios] = useState(false);
+  const [productosParaInventario, setProductosParaInventario] = useState([]);
+  // Vinculación de ítems XML a productos del inventario
+  const [sugerenciasXML, setSugerenciasXML] = useState({}); // { filaId: [productos] }
+  const [vinculacionXML, setVinculacionXML] = useState({}); // { filaId: producto | null }
   const autocompleteRef = useRef(null);
   const busquedaTimeout = useRef(null);
 
@@ -358,6 +365,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
           codigo: item.codigo || '', descripcion: item.descripcion || '',
           cantidad: cant, costo: cost, iva,
           subtotal: cant * cost * (1 + iva / 100),
+          guardarEnInventario: false,
         };
       }));
     }
@@ -418,21 +426,42 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
     }));
   };
 
-  const handleImportarSRI = (datos) => {
+  const handleImportarSRI = async (datos) => {
     if (datos.proveedor)   setProveedor(datos.proveedor);
     if (datos.ruc)         setRuc(datos.ruc);
     if (datos.fecha)       setFecha(datos.fecha);
     if (datos.factura_ref) setFacturaRef(datos.factura_ref);
+
+    const nuevasFilas = [];
     if (datos.detalle?.length > 0) {
-      setFilas(datos.detalle.map(item => {
+      for (const item of datos.detalle) {
         const cant = parseFloat(item.cantidad) || 1;
         const cost = parseFloat(item.costo)    || 0;
         const iva  = parseFloat(item.iva)       || 0;
-        return { _id: Math.random(), producto_id: null, codigo: item.codigo || '',
+        nuevasFilas.push({
+          _id: Math.random(), producto_id: null, codigo: item.codigo || '',
           descripcion: item.descripcion || '', cantidad: cant, costo: cost, iva,
-          subtotal: cant * cost * (1 + iva / 100) };
-      }));
+          subtotal: cant * cost * (1 + iva / 100),
+          guardarEnInventario: false,
+        });
+      }
     }
+    setFilas(nuevasFilas);
+    setVinculacionXML({});
+
+    // Buscar sugerencias de inventario para cada ítem
+    const sugs = {};
+    for (const fila of nuevasFilas) {
+      if (fila.descripcion && fila.descripcion.length >= 3) {
+        try {
+          const palabras = fila.descripcion.split(' ').slice(0, 3).join(' ');
+          const { data } = await api.get(`/productos/buscar?q=${encodeURIComponent(palabras)}&limit=5`);
+          if (data.data?.length > 0) sugs[fila._id] = data.data;
+        } catch { /* ignorar errores de búsqueda */ }
+      }
+    }
+    setSugerenciasXML(sugs);
+
     setImportadoSRI(true);
     setModalSRI(false);
   };
@@ -445,6 +474,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
     setProveedor(''); setRuc(''); setFecha(new Date().toISOString().split('T')[0]);
     setFacturaRef(''); setNotas(''); setImportadoSRI(false);
     setEditandoId(null); setEditandoNumero('');
+    setSugerenciasXML({}); setVinculacionXML({});
   };
 
   const subtotalBase = filas.reduce((s, f) => s + (parseFloat(f.cantidad)||0)*(parseFloat(f.costo)||0), 0);
@@ -455,18 +485,54 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   const total = subtotalBase + totalIva;
   const itemsValidos = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0).length;
 
-  const guardar = async () => {
+  // Construye el detalle de la compra (con vinculaciones XML aplicadas)
+  const construirDetalle = (validas) => validas.map(f => {
+    const vinc = vinculacionXML[f._id];
+    return {
+      producto_id: vinc ? vinc.id : (f.producto_id || null),
+      descripcion: f.descripcion,
+      cantidad: parseFloat(f.cantidad),
+      costo: parseFloat(f.costo),
+      iva: parseFloat(f.iva) || 0,
+    };
+  });
+
+  // Paso 1: validar y abrir modal de precios si hay ítems marcados,
+  // o guardar directamente si no hay ninguno marcado.
+  const guardar = () => {
     const validas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
     if (validas.length === 0) { alert('Agrega al menos un producto'); return; }
     if (!proveedor.trim()) { alert('Ingresa el nombre del proveedor'); return; }
+
+    const paraInventario = validas
+      .filter(f => f.guardarEnInventario)
+      .map(f => ({
+        codigo: (vinculacionXML[f._id]?.codigo || f.codigo || '').toString().trim(),
+        descripcion: f.descripcion,
+        iva: parseFloat(f.iva) || 0,
+        pvp1: 0,
+        pvp2: 0,
+      }))
+      .filter(p => p.descripcion);
+
+    if (paraInventario.length > 0) {
+      // Mostrar modal de precios ANTES de guardar
+      setProductosParaInventario(paraInventario);
+      setModalPrecios(true);
+    } else {
+      // Sin ítems marcados → guardar directamente
+      ejecutarGuardar([]);
+    }
+  };
+
+  // Paso 2: guardar compra (y opcionalmente productos en inventario)
+  const ejecutarGuardar = async (productosInventario) => {
+    const validas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
     setGuardando(true);
     const body = {
       proveedor_nombre: proveedor.trim(), ruc_proveedor: ruc.trim(),
       fecha, factura_ref: facturaRef, notas,
-      detalle: validas.map(f => ({
-        producto_id: f.producto_id, descripcion: f.descripcion,
-        cantidad: parseFloat(f.cantidad), costo: parseFloat(f.costo), iva: parseFloat(f.iva)||0,
-      })),
+      detalle: construirDetalle(validas),
     };
     try {
       if (editandoId) {
@@ -474,15 +540,196 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
       } else {
         await api.post('/compras', body);
       }
-      limpiar(); onGuardado();
+
+      // Guardar productos en inventario si los hay
+      if (productosInventario.length > 0) {
+        const validos = productosInventario.filter(p => p.codigo && p.codigo.trim() && p.descripcion);
+        if (validos.length > 0) {
+          await api.post('/productos/batch-inventario', { productos: validos });
+        }
+      }
+
+      setModalPrecios(false);
+      setProductosParaInventario([]);
+      limpiar();
+      onGuardado();
     } catch (err) {
       alert(err.response?.data?.error || 'Error al guardar compra');
     } finally { setGuardando(false); }
   };
 
+  // Llamado desde el modal cuando el usuario confirma precios
+  const guardarInventarioBatch = () => {
+    ejecutarGuardar(productosParaInventario);
+  };
+
+  // Omitir inventario → guardar compra sin agregar a productos
+  const omitirInventario = () => {
+    setModalPrecios(false);
+    ejecutarGuardar([]);
+  };
+
   return (
     <div style={{ padding: '28px 32px', width: '100%', boxSizing: 'border-box' }}>
       {modalSRI && <ModalSRI onImportar={handleImportarSRI} onCerrar={() => setModalSRI(false)} />}
+
+      {/* ── Modal de precios (se abre ANTES de guardar) ── */}
+      {modalPrecios && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,7,14,.82)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 300, padding: 24, backdropFilter: 'blur(5px)', animation: 'fadeIn .15s' }}>
+          <div style={{ background: '#ffffff', border: '1px solid #e5e7eb',
+            borderRadius: 20, padding: '32px 36px', width: '100%', maxWidth: 720,
+            maxHeight: '90vh', overflowY: 'auto',
+            boxShadow: '0 32px 80px rgba(0,0,0,.25)', animation: 'slideUp .2s ease' }}>
+
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ background: D.teal, color: '#0A0C10', borderRadius: 6,
+                    fontSize: 10, fontWeight: 800, padding: '3px 9px', letterSpacing: .8,
+                    textTransform: 'uppercase' }}>
+                    Paso 1 de 2
+                  </div>
+                  <div style={{ background: '#f3f4f6', color: '#9ca3af', borderRadius: 6,
+                    fontSize: 10, fontWeight: 700, padding: '3px 9px', letterSpacing: .8,
+                    textTransform: 'uppercase' }}>
+                    Paso 2: Registrar compra
+                  </div>
+                </div>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
+                  Definir precios de venta
+                </h2>
+              </div>
+              <button onClick={omitirInventario} disabled={guardando}
+                style={{ background: '#f9fafb', border: '1px solid #e5e7eb', color: '#6b7280',
+                  cursor: 'pointer', borderRadius: 9, width: 34, height: 34,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {Ico.x}
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: '#6b7280', marginTop: 0, marginBottom: 20, lineHeight: 1.6 }}>
+              Estos productos serán guardados en tu inventario. Define el <strong>código interno</strong> y los <strong>precios a los que los venderás</strong> — no el costo de compra.
+            </p>
+
+            {/* Aviso */}
+            <div style={{ padding: '11px 15px', background: D.amberBg,
+              border: '1px solid rgba(251,191,36,.2)', borderRadius: 10, marginBottom: 20,
+              display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+              <span style={{ color: D.amber, flexShrink: 0, marginTop: 1 }}>{Ico.info}</span>
+              <span style={{ fontSize: 12.5, color: D.amber, lineHeight: 1.6 }}>
+                Si el código ya existe en inventario, se actualizarán sus precios. Si no, se creará el producto nuevo.
+              </span>
+            </div>
+
+            {/* Cabecera columnas */}
+            <div style={{ display: 'grid',
+              gridTemplateColumns: '1fr 130px 110px 110px 75px',
+              gap: 8, padding: '8px 12px', marginBottom: 4 }}>
+              {['Descripción del producto', 'Código interno', 'PVP 1 (precio)', 'PVP 2 (mayorista)', 'IVA %'].map((h, i) => (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af',
+                  letterSpacing: 1, textTransform: 'uppercase',
+                  textAlign: i === 0 ? 'left' : 'center' }}>{h}</div>
+              ))}
+            </div>
+
+            {/* Filas de productos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 24 }}>
+              {productosParaInventario.map((p, idx) => {
+                const sinCodigo = !p.codigo || !p.codigo.trim();
+                return (
+                  <div key={idx} style={{
+                    background: sinCodigo ? '#fff7ed' : '#f9fafb',
+                    border: `1px solid ${sinCodigo ? '#fed7aa' : '#e5e7eb'}`,
+                    borderRadius: 10, display: 'grid',
+                    gridTemplateColumns: '1fr 130px 110px 110px 75px',
+                    gap: 8, alignItems: 'center', padding: '10px 12px' }}>
+
+                    {/* Descripción */}
+                    <div style={{ fontSize: 13, color: '#374151', fontWeight: 600,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={p.descripcion}>
+                      {p.descripcion}
+                      {sinCodigo && <div style={{ fontSize: 10.5, color: '#f97316', fontWeight: 500, marginTop: 2 }}>
+                        ⚠ Ingresa un código para guardar
+                      </div>}
+                    </div>
+
+                    {/* Código */}
+                    <input value={p.codigo}
+                      onChange={e => setProductosParaInventario(prev =>
+                        prev.map((x, i) => i === idx ? { ...x, codigo: e.target.value } : x))}
+                      placeholder="Ej: PROD-001"
+                      style={{ ...inp, padding: '8px 10px', fontSize: 12.5,
+                        textAlign: 'center', fontFamily: 'monospace',
+                        borderColor: sinCodigo ? '#f97316' : undefined,
+                        background: sinCodigo ? '#fff' : undefined }} />
+
+                    {/* PVP1 */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ position: 'absolute', left: 9, color: '#9ca3af', fontSize: 12, pointerEvents: 'none' }}>$</span>
+                      <input type="number" value={p.pvp1} min="0" step="0.01"
+                        onChange={e => setProductosParaInventario(prev =>
+                          prev.map((x, i) => i === idx ? { ...x, pvp1: e.target.value } : x))}
+                        style={{ ...inp, padding: '8px 10px', paddingLeft: 20, fontSize: 12.5, textAlign: 'right' }} />
+                    </div>
+
+                    {/* PVP2 */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ position: 'absolute', left: 9, color: '#9ca3af', fontSize: 12, pointerEvents: 'none' }}>$</span>
+                      <input type="number" value={p.pvp2} min="0" step="0.01"
+                        onChange={e => setProductosParaInventario(prev =>
+                          prev.map((x, i) => i === idx ? { ...x, pvp2: e.target.value } : x))}
+                        style={{ ...inp, padding: '8px 10px', paddingLeft: 20, fontSize: 12.5, textAlign: 'right' }} />
+                    </div>
+
+                    {/* IVA */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input type="number" value={p.iva} min="0" max="100"
+                        onChange={e => setProductosParaInventario(prev =>
+                          prev.map((x, i) => i === idx ? { ...x, iva: e.target.value } : x))}
+                        style={{ ...inp, padding: '8px 10px', paddingRight: 20, fontSize: 12.5, textAlign: 'center' }} />
+                      <span style={{ position: 'absolute', right: 8, color: '#9ca3af', fontSize: 11, pointerEvents: 'none' }}>%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+              paddingTop: 20, borderTop: '1px solid #e5e7eb' }}>
+              <div style={{ fontSize: 12.5, color: '#9ca3af' }}>
+                {(() => {
+                  const conCod = productosParaInventario.filter(p => p.codigo?.trim()).length;
+                  const sinCod = productosParaInventario.length - conCod;
+                  if (sinCod > 0) return <span style={{ color: '#f97316' }}>⚠ {sinCod} producto{sinCod > 1 ? 's' : ''} sin código — serán omitidos</span>;
+                  return <span style={{ color: '#059669' }}>✓ {conCod} producto{conCod > 1 ? 's' : ''} listos para guardar</span>;
+                })()}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={omitirInventario} disabled={guardando}
+                  style={{ background: 'transparent', border: '1px solid #e5e7eb', color: '#6b7280',
+                    borderRadius: 10, padding: '10px 20px', fontWeight: 600, fontSize: 13,
+                    cursor: guardando ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    opacity: guardando ? .5 : 1 }}>
+                  Omitir y solo registrar compra
+                </button>
+                <button onClick={guardarInventarioBatch} disabled={guardando}
+                  style={{ background: D.teal, border: 'none', color: '#0A0C10',
+                    borderRadius: 10, padding: '10px 26px', fontWeight: 800, fontSize: 14,
+                    cursor: guardando ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    opacity: guardando ? .6 : 1,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    boxShadow: '0 4px 16px rgba(45,212,191,.3)' }}>
+                  {guardando ? <>{Ico.spin} Guardando...</> : <>{Ico.check} Confirmar y registrar compra</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Banner modo edición */}
       {editandoId && (
@@ -530,216 +777,296 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
         </div>
       )}
 
-      {/* Layout 2 columnas */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20, alignItems: 'start' }}>
+      {/* Layout 1 columna — tabla ancha + barra de resumen abajo */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        {/* ── Columna izquierda ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-          {/* Card: Cabecera proveedor */}
-          <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 22px', borderBottom: '1px solid #e5e7eb',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 6, height: 22, borderRadius: 3, background: D.gold }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151',
-                  letterSpacing: 1, textTransform: 'uppercase' }}>Proveedor</span>
-              </div>
-              <button onClick={() => setModalSRI(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: 7,
-                  background: D.goldBg, border: `1px solid ${D.goldBdr}`,
-                  color: D.gold, borderRadius: 8, padding: '7px 14px',
-                  fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit',
-                  transition: 'all .15s' }}>
-                {Ico.upload} Importar XML
-              </button>
+        {/* Card: Cabecera proveedor */}
+        <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 22px', borderBottom: '1px solid #e5e7eb',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 6, height: 22, borderRadius: 3, background: D.gold }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#374151',
+                letterSpacing: 1, textTransform: 'uppercase' }}>Proveedor</span>
             </div>
-            <div style={{ padding: '20px 22px', display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 16 }}>
-              <Field label="Proveedor" required>
-                <input value={proveedor} onChange={e => setProveedor(e.target.value)}
-                  placeholder="Nombre del proveedor" style={inp} />
-              </Field>
-              <Field label="RUC / Cédula">
-                <input value={ruc} onChange={e => setRuc(e.target.value)}
-                  placeholder="1792072018001"
-                  style={{ ...inp, fontFamily: 'monospace', fontSize: 12.5 }} />
-              </Field>
-              <Field label="Fecha">
-                <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inp} />
-              </Field>
-              <Field label="N° Factura">
-                <input value={facturaRef} onChange={e => setFacturaRef(e.target.value)}
-                  placeholder="027-070-000086972"
-                  style={{ ...inp, fontFamily: 'monospace', fontSize: 12.5 }} />
-              </Field>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <Field label="Notas">
-                  <input value={notas} onChange={e => setNotas(e.target.value)}
-                    placeholder="Observaciones opcionales..." style={inp} />
-                </Field>
-              </div>
-            </div>
+            <button onClick={() => setModalSRI(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 7,
+                background: D.goldBg, border: `1px solid ${D.goldBdr}`,
+                color: D.gold, borderRadius: 8, padding: '7px 14px',
+                fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all .15s' }}>
+              {Ico.upload} Importar XML
+            </button>
           </div>
-
-          {/* Card: Ítems */}
-          <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'visible' }}>
-            <div style={{ padding: '16px 22px', borderBottom: '1px solid #e5e7eb',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 6, height: 22, borderRadius: 3, background: D.teal }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151',
-                  letterSpacing: 1, textTransform: 'uppercase' }}>Productos</span>
-              </div>
-              {itemsValidos > 0 && (
-                <Chip color={D.teal} bg={D.tealBg} border={D.tealBdr}>
-                  {itemsValidos} ítem{itemsValidos !== 1 ? 's' : ''}
-                </Chip>
-              )}
-            </div>
-
-            {/* Cabecera de columnas */}
-            <div style={{ display: 'grid',
-              gridTemplateColumns: '26px 110px 1fr 80px 120px 70px 110px 34px',
-              gap: 8, padding: '10px 16px',
-              borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
-              {['#','Código','Descripción','Cant.','Costo unit.','IVA %','Subtotal',''].map((h, i) => (
-                <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af',
-                  letterSpacing: 1.1, textTransform: 'uppercase',
-                  textAlign: i >= 3 && i <= 6 ? 'right' : 'left' }}>
-                  {h}
-                </div>
-              ))}
-            </div>
-
-            {/* Filas de ítems */}
-            <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {filas.map((fila, idx) => (
-                <ItemRow key={fila._id} fila={fila} idx={idx}
-                  onCambioCodigo={onCambioCodigo}
-                  onCambioDesc={onCambioDesc}
-                  actualizarFila={actualizarFila}
-                  eliminarFila={eliminarFila}
-                  puedeEliminar={filas.length > 1}
-                  sugerencias={filaActiva === fila._id ? sugerencias : []}
-                  seleccionarProducto={seleccionarProducto}
-                  autocompleteRef={autocompleteRef}
-                />
-              ))}
-            </div>
-
-            {/* Agregar fila */}
-            <div style={{ padding: '8px 16px 14px' }}>
-              <button onClick={agregarFila} className="ghost-btn"
-                style={{ width: '100%', background: 'transparent',
-                  border: `1.5px dashed ${D.border}`, color: D.text3,
-                  borderRadius: 10, padding: '10px', fontWeight: 600, fontSize: 13,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                  transition: 'all .15s' }}>
-                {Ico.plus} Agregar producto
-              </button>
+          <div style={{ padding: '20px 22px', display: 'grid',
+            gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 16 }}>
+            <Field label="Proveedor" required>
+              <input value={proveedor} onChange={e => setProveedor(e.target.value)}
+                placeholder="Nombre del proveedor" style={inp} />
+            </Field>
+            <Field label="RUC / Cédula">
+              <input value={ruc} onChange={e => setRuc(e.target.value)}
+                placeholder="1792072018001"
+                style={{ ...inp, fontFamily: 'monospace', fontSize: 12.5 }} />
+            </Field>
+            <Field label="Fecha">
+              <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} style={inp} />
+            </Field>
+            <Field label="N° Factura">
+              <input value={facturaRef} onChange={e => setFacturaRef(e.target.value)}
+                placeholder="027-070-000086972"
+                style={{ ...inp, fontFamily: 'monospace', fontSize: 12.5 }} />
+            </Field>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Field label="Notas">
+                <input value={notas} onChange={e => setNotas(e.target.value)}
+                  placeholder="Observaciones opcionales..." style={inp} />
+              </Field>
             </div>
           </div>
         </div>
 
-        {/* ── Columna derecha: panel resumen ── */}
-        <div style={{ position: 'sticky', top: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-          {/* Resumen */}
-          <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 6, height: 22, borderRadius: 3, background: D.teal }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#374151',
-                  letterSpacing: 1, textTransform: 'uppercase' }}>Resumen</span>
-              </div>
+        {/* Card: Ítems — ahora ancho completo */}
+        <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'visible' }}>
+          <div style={{ padding: '16px 22px', borderBottom: '1px solid #e5e7eb',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 6, height: 22, borderRadius: 3, background: D.teal }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#374151',
+                letterSpacing: 1, textTransform: 'uppercase' }}>Productos</span>
             </div>
-            <div style={{ padding: '18px 20px' }}>
-              <ResumenLine label="Subtotal" value={`$${subtotalBase.toFixed(2)}`} />
-              <ResumenLine label="IVA" value={`$${totalIva.toFixed(2)}`} />
-
-              {/* Total grande */}
-              <div style={{ marginTop: 16, background: D.goldBg, border: `1px solid ${D.goldBdr}`,
-                borderRadius: 12, padding: '16px 18px' }}>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: D.gold, letterSpacing: 1.2,
-                  textTransform: 'uppercase', marginBottom: 4 }}>Total a pagar</div>
-                <div style={{ fontSize: 34, fontWeight: 800, color: D.gold, letterSpacing: -1.5,
-                  lineHeight: 1 }}>
-                  ${total.toFixed(2)}
-                </div>
-              </div>
-
-              {/* Desglose items */}
-              {itemsValidos > 0 && (
-                <div style={{ marginTop: 14, padding: '12px 14px', background: '#f9fafb',
-                  borderRadius: 10, border: '1px solid #e5e7eb' }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, color: '#9ca3af',
-                    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Detalle</div>
-                  {filas.filter(f => f.descripcion).slice(0, 5).map((f, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between',
-                      alignItems: 'center', marginBottom: 5 }}>
-                      <span style={{ fontSize: 12, color: '#374151', flex: 1,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        marginRight: 8 }}>
-                        {f.descripcion || '—'}
-                      </span>
-                      <span style={{ fontSize: 12, color: D.teal, fontWeight: 600, flexShrink: 0 }}>
-                        ${parseFloat(f.subtotal).toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
-                  {filas.filter(f => f.descripcion).length > 5 && (
-                    <div style={{ fontSize: 11.5, color: '#9ca3af', textAlign: 'center', marginTop: 4 }}>
-                      +{filas.filter(f => f.descripcion).length - 5} más
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {itemsValidos > 0 && (
+              <Chip color={D.teal} bg={D.tealBg} border={D.tealBdr}>
+                {itemsValidos} ítem{itemsValidos !== 1 ? 's' : ''}
+              </Chip>
+            )}
           </div>
 
-          {/* Acciones */}
-          <button onClick={guardar} disabled={guardando}
-            style={{ width: '100%', background: D.gold, border: 'none', color: '#0A0C10',
-              borderRadius: 12, padding: '13px', fontWeight: 800, fontSize: 14,
-              cursor: guardando ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-              opacity: guardando ? .6 : 1, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', gap: 9,
-              boxShadow: '0 4px 20px rgba(201,168,76,.3)', transition: 'all .15s',
-              letterSpacing: .2 }}>
-            {guardando ? <>{Ico.spin} Guardando...</> : editandoId ? <>{Ico.save} Guardar cambios</> : <>{Ico.save} Registrar compra</>}
-          </button>
+          {/* Cabecera de columnas */}
+          <TablaHeader
+            modoXML={importadoSRI}
+            todosM={filas.length > 0 && filas.every(f => f.guardarEnInventario)}
+            algunoM={filas.some(f => f.guardarEnInventario)}
+            toggleTodos={() => {
+              const todosM = filas.length > 0 && filas.every(f => f.guardarEnInventario);
+              setFilas(prev => prev.map(f => ({ ...f, guardarEnInventario: !todosM })));
+            }}
+          />
 
-          <button onClick={limpiar}
-            style={{ width: '100%', background: 'transparent', border: '1px solid #e5e7eb',
-              color: '#9ca3af', borderRadius: 12, padding: '10px', fontWeight: 600, fontSize: 13,
-              cursor: 'pointer', fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              transition: 'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = D.red; e.currentTarget.style.color = D.red; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#9ca3af'; }}>
-            {Ico.clear} Limpiar formulario
-          </button>
+          {/* Filas de ítems */}
+          <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {filas.map((fila, idx) => (
+              <ItemRow key={fila._id} fila={fila} idx={idx}
+                onCambioCodigo={onCambioCodigo}
+                onCambioDesc={onCambioDesc}
+                actualizarFila={actualizarFila}
+                eliminarFila={eliminarFila}
+                puedeEliminar={filas.length > 1}
+                sugerencias={filaActiva === fila._id ? sugerencias : []}
+                seleccionarProducto={seleccionarProducto}
+                autocompleteRef={autocompleteRef}
+                sugerenciasXML={sugerenciasXML[fila._id] || []}
+                vinculacionXML={vinculacionXML[fila._id] || null}
+                onVincularXML={(prod) => setVinculacionXML(prev => ({ ...prev, [fila._id]: prod }))}
+                modoXML={importadoSRI}
+              />
+            ))}
+          </div>
+
+          {/* Agregar fila */}
+          <div style={{ padding: '8px 16px 14px' }}>
+            <button onClick={agregarFila} className="ghost-btn"
+              style={{ width: '100%', background: 'transparent',
+                border: `1.5px dashed ${D.border}`, color: D.text3,
+                borderRadius: 10, padding: '10px', fontWeight: 600, fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                transition: 'all .15s' }}>
+              {Ico.plus} Agregar producto
+            </button>
+          </div>
         </div>
+
+        {/* ── Barra de resumen + acciones (horizontal, ancho completo) ── */}
+        <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16,
+          padding: '14px 24px', display: 'flex', alignItems: 'center',
+          gap: 0, flexWrap: 'wrap' }}>
+
+          {/* Subtotal */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
+            paddingRight: 28, borderRight: '1px solid #e5e7eb' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9ca3af',
+              letterSpacing: .9, textTransform: 'uppercase' }}>Subtotal</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#374151' }}>
+              ${subtotalBase.toFixed(2)}
+            </span>
+          </div>
+
+          {/* IVA */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
+            paddingLeft: 28, paddingRight: 28, borderRight: '1px solid #e5e7eb' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9ca3af',
+              letterSpacing: .9, textTransform: 'uppercase' }}>IVA</span>
+            <span style={{ fontSize: 18, fontWeight: 700, color: '#374151' }}>
+              ${totalIva.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Total */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
+            paddingLeft: 28, paddingRight: 32 }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: D.gold,
+              letterSpacing: .9, textTransform: 'uppercase' }}>Total a pagar</span>
+            <span style={{ fontSize: 26, fontWeight: 800, color: D.gold, letterSpacing: -1 }}>
+              ${total.toFixed(2)}
+            </span>
+          </div>
+
+          {/* Aviso inventario (solo si hay marcados) */}
+          {filas.some(f => f.guardarEnInventario) && (
+            <div style={{ flex: 1, background: D.tealBg, border: `1px solid ${D.tealBdr}`,
+              borderRadius: 10, padding: '8px 14px', marginRight: 16,
+              display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: D.teal, flexShrink: 0 }}>{Ico.info}</span>
+              <span style={{ fontSize: 12, color: D.teal, lineHeight: 1.4 }}>
+                <strong>{filas.filter(f => f.guardarEnInventario).length}</strong> producto{filas.filter(f => f.guardarEnInventario).length !== 1 ? 's' : ''} al inventario · se pedirán precios de venta
+              </span>
+            </div>
+          )}
+
+          {/* Spacer */}
+          {!filas.some(f => f.guardarEnInventario) && <div style={{ flex: 1 }} />}
+
+          {/* Botones */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={limpiar}
+              style={{ background: 'transparent', border: '1px solid #e5e7eb', color: '#9ca3af',
+                borderRadius: 10, padding: '9px 20px', fontWeight: 600, fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', gap: 7, transition: 'all .15s',
+                whiteSpace: 'nowrap' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = D.red; e.currentTarget.style.color = D.red; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#9ca3af'; }}>
+              {Ico.clear} Limpiar
+            </button>
+            <button onClick={guardar} disabled={guardando}
+              style={{ background: D.gold, border: 'none', color: '#0A0C10',
+                borderRadius: 10, padding: '9px 28px', fontWeight: 800, fontSize: 14,
+                cursor: guardando ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                opacity: guardando ? .6 : 1, display: 'flex', alignItems: 'center', gap: 9,
+                boxShadow: '0 4px 16px rgba(201,168,76,.3)', transition: 'all .15s',
+                letterSpacing: .2, whiteSpace: 'nowrap' }}>
+              {guardando ? <>{Ico.spin} Guardando...</> : editandoId ? <>{Ico.save} Guardar cambios</> : <>{Ico.save} Registrar compra</>}
+            </button>
+          </div>
+        </div>
+
       </div>
+    </div>
+  );
+}
+
+// ── Cabecera de tabla de ítems ─────────────────────────────
+function TablaHeader({ modoXML, todosM, algunoM, toggleTodos }) {
+  const cols = modoXML
+    ? '30px 120px 1fr 90px 130px 80px 120px 110px 170px 36px'
+    : '30px 120px 1fr 90px 130px 80px 120px 110px 36px';
+  const headers = modoXML
+    ? ['#','Código','Descripción','Cant.','Costo unit.','IVA %','Subtotal',null,'Vincular producto','']
+    : ['#','Código','Descripción','Cant.','Costo unit.','IVA %','Subtotal',null,''];
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: cols,
+      gap: 8, padding: '10px 16px',
+      borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
+      {headers.map((h, i) => {
+        if (h === null) return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
+            title="Marcar para guardar en inventario de productos"
+            onClick={toggleTodos}>
+            <div style={{ width: 15, height: 15, borderRadius: 4, flexShrink: 0,
+              border: `2px solid ${algunoM ? D.teal : '#d1d5db'}`,
+              background: todosM ? D.teal : algunoM ? D.tealBg : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all .15s' }}>
+              {todosM && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#0A0C10" strokeWidth="3.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+              {algunoM && !todosM && <div style={{ width: 7, height: 2, background: D.teal, borderRadius: 1 }} />}
+            </div>
+            <span style={{ fontSize: 9.5, fontWeight: 700,
+              color: algunoM ? D.teal : '#9ca3af',
+              letterSpacing: .8, textTransform: 'uppercase', lineHeight: 1.2 }}>
+              A inventario
+            </span>
+          </div>
+        );
+        return (
+          <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af',
+            letterSpacing: 1.1, textTransform: 'uppercase',
+            textAlign: i >= 3 && i <= 6 ? 'right' : 'left' }}>
+            {h}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ── Item row compacto con grid ─────────────────────────────
 function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
-  eliminarFila, puedeEliminar, sugerencias, seleccionarProducto, autocompleteRef }) {
+  eliminarFila, puedeEliminar, sugerencias, seleccionarProducto, autocompleteRef,
+  sugerenciasXML, vinculacionXML, onVincularXML, modoXML }) {
+
+  const [mostrarSugsXML, setMostrarSugsXML] = useState(false);
+  const [busqXML, setBusqXML] = useState('');
+  const [resBusqXML, setResBusqXML] = useState([]);
+  const [buscandoXML, setBuscandoXML] = useState(false);
+  const busqTimeout = useRef(null);
+
+  // Búsqueda manual en el dropdown XML — por palabras sueltas para encontrar
+  // "ARENA CARRETILLAS" cuando el usuario escribe "CARRETILLAS ARENA"
+  const buscarEnInventario = useCallback(async (texto) => {
+    if (!texto || texto.trim().length < 2) { setResBusqXML([]); return; }
+    setBuscandoXML(true);
+    try {
+      // Buscar con cada palabra de forma individual y combinar resultados únicos
+      const palabras = texto.trim().split(/\s+/).filter(p => p.length >= 2);
+      const sets = await Promise.all(
+        palabras.map(p => api.get(`/productos/buscar?q=${encodeURIComponent(p)}&limit=8`).then(r => r.data.data || []))
+      );
+      // Unir y deduplicar por id, ordenar por cuántas palabras matchean (más = primero)
+      const mapa = new Map();
+      sets.forEach((res, pi) => {
+        res.forEach(prod => {
+          if (!mapa.has(prod.id)) mapa.set(prod.id, { ...prod, _hits: 0 });
+          mapa.get(prod.id)._hits++;
+        });
+      });
+      const ordenados = [...mapa.values()].sort((a, b) => b._hits - a._hits).slice(0, 8);
+      setResBusqXML(ordenados);
+    } catch { setResBusqXML([]); }
+    finally { setBuscandoXML(false); }
+  }, []);
+
+  const onBusqXMLChange = (v) => {
+    setBusqXML(v);
+    clearTimeout(busqTimeout.current);
+    busqTimeout.current = setTimeout(() => buscarEnInventario(v), 280);
+  };
 
   const cInp = {
     ...inp, padding: '8px 10px', fontSize: 12.5,
     background: '#f9fafb', borderRadius: 7,
   };
 
+  // El grid siempre incluye la columna del checkbox (col 8).
+  // En modo XML se agrega la columna Vincular (col 9) antes del botón eliminar.
+  const gridCols = modoXML
+    ? '30px 120px 1fr 90px 130px 80px 120px 110px 170px 36px'
+    : '30px 120px 1fr 90px 130px 80px 120px 110px 36px';
+
   return (
     <div className="item-card row-fade"
       style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10,
-        display: 'grid', gridTemplateColumns: '26px 110px 1fr 80px 120px 70px 110px 34px',
+        display: 'grid', gridTemplateColumns: gridCols,
         gap: 8, alignItems: 'center', padding: '8px 8px' }}>
 
       {/* # */}
@@ -817,6 +1144,175 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
           ${parseFloat(fila.subtotal).toFixed(2)}
         </span>
       </div>
+
+      {/* ── Checkbox guardar en inventario (SIEMPRE visible) ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer',
+          width: 22, height: 22 }} title="Guardar en inventario">
+          <input
+            type="checkbox"
+            checked={fila.guardarEnInventario || false}
+            onChange={e => actualizarFila(fila._id, { guardarEnInventario: e.target.checked })}
+            style={{ display: 'none' }}
+          />
+          <div style={{
+            width: 20, height: 20, borderRadius: 5, flexShrink: 0,
+            border: `2px solid ${fila.guardarEnInventario ? D.teal : '#d1d5db'}`,
+            background: fila.guardarEnInventario ? D.teal : 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all .15s',
+          }}>
+            {fila.guardarEnInventario && (
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                stroke="#0A0C10" strokeWidth="3" strokeLinecap="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            )}
+          </div>
+        </label>
+      </div>
+
+      {/* ── Columna Vincular (solo modo XML) ── */}
+      {modoXML && (
+        <div style={{ position: 'relative' }}>
+          {vinculacionXML ? (
+            // Ya vinculado — mostrar chip con X para desvincular
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5,
+              background: D.tealBg, border: `1px solid ${D.tealBdr}`,
+              borderRadius: 7, padding: '5px 8px', cursor: 'pointer' }}
+              onClick={() => onVincularXML(null)}>
+              <span style={{ color: D.teal, fontSize: 11, fontWeight: 700,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90 }}>
+                {vinculacionXML.codigo}
+              </span>
+              <span style={{ color: D.teal, fontSize: 10, flexShrink: 0 }}>{Ico.x}</span>
+            </div>
+          ) : (
+            // Sin vincular: botón que abre dropdown con búsqueda por palabras
+            <div>
+              <button onClick={() => { setMostrarSugsXML(v => !v); if (!mostrarSugsXML) setBusqXML(''); }}
+                style={{ width: '100%', background: sugerenciasXML.length > 0 ? D.goldBg : '#f9fafb',
+                  border: `1px solid ${sugerenciasXML.length > 0 ? D.goldBdr : '#e5e7eb'}`,
+                  borderRadius: 7, padding: '5px 8px', fontSize: 11,
+                  color: sugerenciasXML.length > 0 ? D.gold : '#9ca3af',
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                  textAlign: 'left', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {sugerenciasXML.length > 0
+                  ? <>{Ico.search} {sugerenciasXML.length} similares</>
+                  : <span style={{ fontSize: 10 }}>Vincular...</span>}
+              </button>
+
+              {mostrarSugsXML && (
+                <div style={{
+                  position: 'absolute', top: 'calc(100% + 3px)', right: 0, zIndex: 150,
+                  background: '#ffffff', border: '1px solid #e5e7eb',
+                  borderRadius: 10, width: 280,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                }}>
+                  {/* Buscador manual */}
+                  <div style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>
+                    <div style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: 8, top: '50%',
+                        transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }}>
+                        {Ico.search}
+                      </span>
+                      <input
+                        autoFocus
+                        value={busqXML}
+                        onChange={e => onBusqXMLChange(e.target.value)}
+                        placeholder="Buscar producto..."
+                        style={{ ...inp, paddingLeft: 28, padding: '6px 8px 6px 26px',
+                          fontSize: 12, background: '#f9fafb', borderRadius: 7 }}
+                        onKeyDown={e => { if (e.key === 'Escape') setMostrarSugsXML(false); }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Lista de resultados */}
+                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                    {/* Sugerencias automáticas (del XML) si no hay búsqueda manual */}
+                    {!busqXML && sugerenciasXML.length > 0 && (
+                      <>
+                        <div style={{ padding: '6px 12px', fontSize: 9.5, fontWeight: 700,
+                          color: '#9ca3af', letterSpacing: 1, textTransform: 'uppercase' }}>
+                          Sugerencias automáticas
+                        </div>
+                        {sugerenciasXML.map(p => (
+                          <div key={p.id} className="sugg-row"
+                            onMouseDown={() => { onVincularXML(p); setMostrarSugsXML(false); }}
+                            style={{ padding: '8px 12px', cursor: 'pointer',
+                              borderBottom: '1px solid #f3f4f6',
+                              display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span style={{ color: '#111827', fontSize: 12, fontWeight: 600,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {p.descripcion.length > 34 ? p.descripcion.slice(0, 32) + '..' : p.descripcion}
+                            </span>
+                            <span style={{ color: '#9ca3af', fontSize: 10.5, fontFamily: 'monospace' }}>
+                              {p.codigo} · Stock: {parseFloat(p.stock)}
+                            </span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Resultados de búsqueda manual */}
+                    {busqXML && (
+                      buscandoXML ? (
+                        <div style={{ padding: '14px', textAlign: 'center', color: '#9ca3af',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                          {Ico.spin} Buscando...
+                        </div>
+                      ) : resBusqXML.length > 0 ? (
+                        <>
+                          <div style={{ padding: '6px 12px', fontSize: 9.5, fontWeight: 700,
+                            color: '#9ca3af', letterSpacing: 1, textTransform: 'uppercase' }}>
+                            Resultados
+                          </div>
+                          {resBusqXML.map(p => (
+                            <div key={p.id} className="sugg-row"
+                              onMouseDown={() => { onVincularXML(p); setMostrarSugsXML(false); setBusqXML(''); }}
+                              style={{ padding: '8px 12px', cursor: 'pointer',
+                                borderBottom: '1px solid #f3f4f6',
+                                display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ color: '#111827', fontSize: 12, fontWeight: 600,
+                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {p.descripcion.length > 34 ? p.descripcion.slice(0, 32) + '..' : p.descripcion}
+                              </span>
+                              <span style={{ color: '#9ca3af', fontSize: 10.5, fontFamily: 'monospace' }}>
+                                {p.codigo} · Stock: {parseFloat(p.stock)}
+                              </span>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <div style={{ padding: '14px 12px', textAlign: 'center',
+                          color: '#9ca3af', fontSize: 12 }}>
+                          Sin resultados
+                        </div>
+                      )
+                    )}
+
+                    {!busqXML && sugerenciasXML.length === 0 && (
+                      <div style={{ padding: '14px 12px', textAlign: 'center',
+                        color: '#9ca3af', fontSize: 12 }}>
+                        Escribe para buscar
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ padding: '6px 10px', borderTop: '1px solid #e5e7eb', textAlign: 'right' }}>
+                    <button onMouseDown={() => setMostrarSugsXML(false)}
+                      style={{ background: 'none', border: 'none', color: '#9ca3af',
+                        fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Eliminar */}
       <button className="del-btn" onClick={() => eliminarFila(fila._id)}
@@ -978,6 +1474,19 @@ function Historial({ esAdmin, onCargarEnNueva }) {
     background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8,
     padding: '9px 13px', color: '#111827', fontSize: 13.5, outline: 'none',
     fontFamily: 'inherit', boxSizing: 'border-box',
+  };
+
+  const editSubtotalBase = editFilas.reduce((s, f) => s + (parseFloat(f.cantidad)||0)*(parseFloat(f.costo)||0), 0);
+  const editTotalIva     = editFilas.reduce((s, f) => {
+    const b = (parseFloat(f.cantidad)||0)*(parseFloat(f.costo)||0);
+    return s + b*((parseFloat(f.iva)||0)/100);
+  }, 0);
+  const editTotal = editSubtotalBase + editTotalIva;
+  const celdaInp = {
+    width: '100%', background: '#ffffff', border: '1px solid #e5e7eb',
+    borderRadius: 7, padding: '7px 10px', color: '#111827',
+    fontSize: 12.5, outline: 'none', fontFamily: 'inherit',
+    boxSizing: 'border-box',
   };
 
   return (
@@ -1290,20 +1799,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
       )}
 
       {/* ── Modal Editar ───────────────────────────────────────── */}
-      {modalEditar && compraSeleccionada && (() => {
-        const editSubtotalBase = editFilas.reduce((s, f) => s + (parseFloat(f.cantidad)||0)*(parseFloat(f.costo)||0), 0);
-        const editTotalIva     = editFilas.reduce((s, f) => {
-          const b = (parseFloat(f.cantidad)||0)*(parseFloat(f.costo)||0);
-          return s + b*((parseFloat(f.iva)||0)/100);
-        }, 0);
-        const editTotal = editSubtotalBase + editTotalIva;
-        const celdaInp = {
-          width: '100%', background: '#ffffff', border: '1px solid #e5e7eb',
-          borderRadius: 7, padding: '7px 10px', color: '#111827',
-          fontSize: 12.5, outline: 'none', fontFamily: 'inherit',
-          boxSizing: 'border-box',
-        };
-        return (
+      {modalEditar && compraSeleccionada && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
             display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
             zIndex: 60, padding: '24px 20px', backdropFilter: 'blur(3px)',
@@ -1485,8 +1981,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
               </div>
             </div>
           </div>
-        );
-      })()}
+      )}
     </div>
   );
 }

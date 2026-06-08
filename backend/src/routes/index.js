@@ -10,7 +10,7 @@ const uploadMemory = multer({ storage: multer.memoryStorage() });
 const { verificarToken, soloAdmin } = require('../middleware/auth');
 
 const { login, perfil, solicitarRecuperacion, verificarCodigo, nuevaPassword } = require('../controllers/authController');
-const { listar: listarProd, obtener: obtenerProd, crear: crearProd, actualizar: actualizarProd, eliminar: eliminarProd, ajusteStock, importarExcel, exportarExcel } = require('../controllers/productosController');
+const { listar: listarProd, obtener: obtenerProd, crear: crearProd, actualizar: actualizarProd, eliminar: eliminarProd, ajusteStock, importarExcel, exportarExcel, buscarProductos, guardarBatchInventario } = require('../controllers/productosController');
 const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: actualizarDoc, convertirARecibo, eliminar: eliminarDoc } = require('../controllers/documentosController');
 const { listar: listarComp, obtener: obtenerComp, crear: crearComp, actualizar: actualizarComp, eliminar: eliminarComp } = require('../controllers/comprasController');
 const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
@@ -43,10 +43,12 @@ const productosRouter = express.Router();
 productosRouter.use(verificarToken);
 productosRouter.get('/',                listarProd);
 productosRouter.get('/exportar',        exportarExcel);
+productosRouter.get('/buscar',          buscarProductos);
 productosRouter.get('/:id',             obtenerProd);
 productosRouter.post('/',               crearProd);
 productosRouter.post('/importar',       upload.single('archivo'), importarExcel);
 productosRouter.post('/ajuste-stock',   soloAdmin, ajusteStock);
+productosRouter.post('/batch-inventario', soloAdmin, guardarBatchInventario);
 productosRouter.put('/:id',             actualizarProd);
 productosRouter.delete('/:id',          soloAdmin, eliminarProd);
 

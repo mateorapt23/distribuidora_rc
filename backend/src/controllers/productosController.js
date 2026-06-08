@@ -321,4 +321,90 @@ const fixInventariable = async (req, res) => {
   }
 };
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, ajusteStock, importarExcel, exportarExcel, fixInventariable };
+// Búsqueda rápida para autocomplete (usada desde Compras y otros)
+const buscarProductos = async (req, res) => {
+  const { q = '', limit = 8 } = req.query;
+  if (!q || q.trim().length < 1) return res.json({ data: [] });
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, codigo, descripcion, stock, iva, pvp1, pvp2
+       FROM productos
+       WHERE activo = TRUE
+         AND (codigo ILIKE $1 OR descripcion ILIKE $1)
+       ORDER BY descripcion ASC
+       LIMIT $2`,
+      [`%${q.trim()}%`, parseInt(limit)]
+    );
+    res.json({ data: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Error en búsqueda de productos' });
+  }
+};
+
+// Guardar/actualizar varios productos desde el modal de precios post-compra
+// Body: { productos: [{ codigo, descripcion, iva, pvp1, pvp2 }] }
+const guardarBatchInventario = async (req, res) => {
+  const { productos } = req.body;
+  if (!Array.isArray(productos) || productos.length === 0) {
+    return res.status(400).json({ error: 'Se requiere un arreglo de productos' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    let creados = 0, actualizados = 0;
+    const resultados = [];
+
+    for (const p of productos) {
+      const codigo      = (p.codigo || '').toString().trim();
+      const descripcion = (p.descripcion || '').toString().trim();
+      const iva         = parseFloat(p.iva)  || 0;
+      const pvp1        = parseFloat(p.pvp1) || 0;
+      const pvp2        = parseFloat(p.pvp2) || 0;
+
+      if (!codigo || !descripcion) continue;
+
+      const { rows: existe } = await client.query(
+        'SELECT id FROM productos WHERE codigo = $1', [codigo]
+      );
+
+      if (existe.length > 0) {
+        const { rows } = await client.query(
+          `UPDATE productos
+           SET descripcion = $1, iva = $2, pvp1 = $3, pvp2 = $4, activo = TRUE
+           WHERE codigo = $5 RETURNING *`,
+          [descripcion, iva, pvp1, pvp2, codigo]
+        );
+        resultados.push(rows[0]);
+        actualizados++;
+      } else {
+        const { rows } = await client.query(
+          `INSERT INTO productos (codigo, descripcion, inventariable, stock, stock_minimo, iva, pvp1, pvp2)
+           VALUES ($1, $2, TRUE, 0, 0, $3, $4, $5) RETURNING *`,
+          [codigo, descripcion, iva, pvp1, pvp2]
+        );
+        resultados.push(rows[0]);
+        creados++;
+      }
+    }
+
+    await client.query('COMMIT');
+
+    await registrarLog(req, {
+      accion: 'guardar_batch_inventario',
+      modulo: 'productos',
+      descripcion: `Guardó ${creados} productos nuevos y actualizó ${actualizados} desde compra`,
+    });
+
+    res.json({ mensaje: 'Productos guardados en inventario', creados, actualizados, productos: resultados });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Error al guardar productos: ' + err.message });
+  } finally {
+    client.release();
+  }
+};
+
+module.exports = { listar, obtener, crear, actualizar, eliminar, ajusteStock, importarExcel, exportarExcel, fixInventariable, buscarProductos, guardarBatchInventario };
