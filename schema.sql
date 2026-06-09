@@ -4,6 +4,22 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- ============================================================
+-- FUNCIÓN (debe ir antes de cualquier trigger que la use)
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION actualizar_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.actualizado_en = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- TABLAS
+-- ============================================================
+
 CREATE TABLE usuarios (
     id          SERIAL PRIMARY KEY,
     nombre      VARCHAR(100) NOT NULL,
@@ -18,7 +34,6 @@ CREATE TABLE usuarios (
 INSERT INTO usuarios (nombre, username, password, rol)
 VALUES ('Administrador', 'admin', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
 
--- Tokens temporales para recuperación de contraseña (expiran en 15 minutos)
 CREATE TABLE password_reset_tokens (
     id          SERIAL PRIMARY KEY,
     usuario_id  INTEGER      NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -172,55 +187,42 @@ CREATE TABLE clientes (
 
 ALTER TABLE documentos ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id);
 
-CREATE TRIGGER trg_clientes_updated
-    BEFORE UPDATE ON clientes
-    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
-
--- ============================================================
--- AUDITORÍA
--- ============================================================
-
 CREATE TABLE logs_actividad (
     id              SERIAL PRIMARY KEY,
     usuario_id      INTEGER       REFERENCES usuarios(id) ON DELETE SET NULL,
-    usuario_nombre  VARCHAR(100),                        -- nombre snapshot por si se elimina el usuario
-    accion          VARCHAR(100)  NOT NULL,              -- ej: 'crear_recibo', 'eliminar_producto'
-    modulo          VARCHAR(50)   NOT NULL,              -- ej: 'documentos', 'productos', 'compras'
-    descripcion     TEXT,                                -- detalle legible, ej: 'Creó recibo R-0015 por $45.00'
-    referencia_id   INTEGER,                             -- id del registro afectado (opcional)
-    ip              VARCHAR(45),                         -- IPv4 o IPv6
+    usuario_nombre  VARCHAR(100),
+    accion          VARCHAR(100)  NOT NULL,
+    modulo          VARCHAR(50)   NOT NULL,
+    descripcion     TEXT,
+    referencia_id   INTEGER,
+    ip              VARCHAR(45),
     creado_en       TIMESTAMP     NOT NULL DEFAULT NOW()
 );
-
-CREATE INDEX idx_logs_usuario  ON logs_actividad(usuario_id);
-CREATE INDEX idx_logs_modulo   ON logs_actividad(modulo);
-CREATE INDEX idx_logs_creado   ON logs_actividad(creado_en DESC);
 
 -- ============================================================
 -- ÍNDICES
 -- ============================================================
 
-CREATE INDEX idx_productos_codigo      ON productos(codigo);
+CREATE INDEX idx_logs_usuario            ON logs_actividad(usuario_id);
+CREATE INDEX idx_logs_modulo             ON logs_actividad(modulo);
+CREATE INDEX idx_logs_creado             ON logs_actividad(creado_en DESC);
+CREATE INDEX idx_productos_codigo        ON productos(codigo);
 CREATE INDEX idx_clientes_identificacion ON clientes(identificacion);
 CREATE INDEX idx_clientes_nombre         ON clientes(nombre);
-CREATE INDEX idx_documentos_tipo       ON documentos(tipo);
-CREATE INDEX idx_documentos_fecha      ON documentos(fecha);
-CREATE INDEX idx_movimiento_producto   ON movimiento_stock(producto_id);
-CREATE INDEX idx_compras_fecha         ON compras(fecha);
-CREATE INDEX idx_compras_ruc_proveedor ON compras(ruc_proveedor);
-CREATE INDEX idx_reset_tokens_usuario  ON password_reset_tokens(usuario_id);
+CREATE INDEX idx_documentos_tipo         ON documentos(tipo);
+CREATE INDEX idx_documentos_fecha        ON documentos(fecha);
+CREATE INDEX idx_movimiento_producto     ON movimiento_stock(producto_id);
+CREATE INDEX idx_compras_fecha           ON compras(fecha);
+CREATE INDEX idx_compras_ruc_proveedor   ON compras(ruc_proveedor);
+CREATE INDEX idx_reset_tokens_usuario    ON password_reset_tokens(usuario_id);
 
 -- ============================================================
--- FUNCIONES Y TRIGGERS
+-- TRIGGERS (todos al final, la función ya existe arriba)
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION actualizar_timestamp()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.actualizado_en = NOW();
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_clientes_updated
+    BEFORE UPDATE ON clientes
+    FOR EACH ROW EXECUTE FUNCTION actualizar_timestamp();
 
 CREATE TRIGGER trg_productos_updated
     BEFORE UPDATE ON productos
