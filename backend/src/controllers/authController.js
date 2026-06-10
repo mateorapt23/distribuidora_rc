@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const { registrarLog } = require('./logHelper');
-const Brevo = require('@getbrevo/brevo');
+const axios = require('axios');
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 const login = async (req, res) => {
@@ -126,24 +126,30 @@ const solicitarRecuperacion = async (req, res) => {
       [usuario.id, codigo]
     );
 
-    const brevo = new Brevo.TransactionalEmailsApi();
-    brevo.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
-
-    await brevo.sendTransacEmail({
-      sender: { email: process.env.BREVO_SENDER_EMAIL, name: 'Distribuidora RC' },
-      to: [{ email: usuario.email }],
-      subject: 'Código de recuperación de contraseña',
-      htmlContent: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 12px;">
-          <h2 style="color: #0D111C; margin-bottom: 8px;">Recuperación de contraseña</h2>
-          <p style="color: #444; margin-bottom: 24px;">Hola <strong>${usuario.nombre}</strong>, usa el siguiente código para restablecer tu contraseña:</p>
-          <div style="background: #0D111C; color: #F5C400; font-size: 36px; font-weight: 800; letter-spacing: 12px; text-align: center; padding: 24px; border-radius: 10px;">
-            ${codigo}
+    await axios.post(
+      'https://api.brevo.com/v3/smtp/email',
+      {
+        sender: { email: process.env.BREVO_SENDER_EMAIL, name: 'Distribuidora RC' },
+        to: [{ email: usuario.email }],
+        subject: 'Código de recuperación de contraseña',
+        htmlContent: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 12px;">
+            <h2 style="color: #0D111C; margin-bottom: 8px;">Recuperación de contraseña</h2>
+            <p style="color: #444; margin-bottom: 24px;">Hola <strong>${usuario.nombre}</strong>, usa el siguiente código para restablecer tu contraseña:</p>
+            <div style="background: #0D111C; color: #F5C400; font-size: 36px; font-weight: 800; letter-spacing: 12px; text-align: center; padding: 24px; border-radius: 10px;">
+              ${codigo}
+            </div>
+            <p style="color: #888; font-size: 13px; margin-top: 24px;">Este código expira en <strong>15 minutos</strong>. Si no solicitaste esto, ignora este correo.</p>
           </div>
-          <p style="color: #888; font-size: 13px; margin-top: 24px;">Este código expira en <strong>15 minutos</strong>. Si no solicitaste esto, ignora este correo.</p>
-        </div>
-      `,
-    });
+        `,
+      },
+      {
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'content-type': 'application/json',
+        },
+      }
+    );
 
     res.json({ mensaje: 'Si el usuario existe y tiene email registrado, recibirás un código.' });
   } catch (err) {
