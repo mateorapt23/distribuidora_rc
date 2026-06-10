@@ -1,20 +1,9 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const pool = require('../config/db');
 const { registrarLog } = require('./logHelper');
-
-// ── Transporter de email ──────────────────────────────────────────────────────
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,       // STARTTLS en lugar de SSL
-  family: 4,           // ← fuerza IPv4, esto es lo que soluciona Render
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const { Resend } = require('resend');
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 const login = async (req, res) => {
@@ -138,8 +127,8 @@ const solicitarRecuperacion = async (req, res) => {
       [usuario.id, codigo]
     );
 
-    await transporter.sendMail({
-      from: `"Distribuidora RC" <${process.env.EMAIL_USER}>`,
+    await resend.emails.send({
+      from: 'Distribuidora RC <onboarding@resend.dev>',  // dominio gratis de Resend
       to: usuario.email,
       subject: 'Código de recuperación de contraseña',
       html: `
