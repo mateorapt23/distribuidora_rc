@@ -6,7 +6,10 @@ const { registrarLog } = require('./logHelper');
 
 // ── Transporter de email ──────────────────────────────────────────────────────
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,       // STARTTLS en lugar de SSL
+  family: 4,           // ← fuerza IPv4, esto es lo que soluciona Render
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
