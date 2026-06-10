@@ -31,6 +31,7 @@ app.use('/api/reportes',    reportesRouter);
 app.use('/api/facturas-ef', facturasEfRouter);
 app.use('/api/logs',        logsRouter);               // ← agregado
 
+app.get('/',           (req, res) => res.json({ status: 'ok' }));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
 app.use((err, req, res, next) => {
