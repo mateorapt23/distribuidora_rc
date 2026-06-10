@@ -2,8 +2,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/db');
 const { registrarLog } = require('./logHelper');
-const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
+const Brevo = require('@getbrevo/brevo');
 
 // ── LOGIN ─────────────────────────────────────────────────────────────────────
 const login = async (req, res) => {
@@ -127,11 +126,14 @@ const solicitarRecuperacion = async (req, res) => {
       [usuario.id, codigo]
     );
 
-    await resend.emails.send({
-      from: 'Distribuidora RC <onboarding@resend.dev>',  // dominio gratis de Resend
-      to: usuario.email,
+    const brevo = new Brevo.TransactionalEmailsApi();
+    brevo.authentications['api-key'].apiKey = process.env.BREVO_API_KEY;
+
+    await brevo.sendTransacEmail({
+      sender: { email: process.env.BREVO_SENDER_EMAIL, name: 'Distribuidora RC' },
+      to: [{ email: usuario.email }],
       subject: 'Código de recuperación de contraseña',
-      html: `
+      htmlContent: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #f9f9f9; border-radius: 12px;">
           <h2 style="color: #0D111C; margin-bottom: 8px;">Recuperación de contraseña</h2>
           <p style="color: #444; margin-bottom: 24px;">Hola <strong>${usuario.nombre}</strong>, usa el siguiente código para restablecer tu contraseña:</p>
