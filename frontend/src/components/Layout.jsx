@@ -221,7 +221,7 @@ export default function Layout({ children }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 0 14px rgba(245,196,0,0.65), 0 0 28px rgba(245,196,0,0.28), 0 2px 6px rgba(0,0,0,0.35)',
             }}>
-              <span style={{ fontSize: 17, fontWeight: 900, color: '#0D111C', lineHeight: 1, WebkitTextStroke: '0.1px #0D111C' }}>FC</span>
+              <span style={{ fontSize: 17, fontWeight: 900, color: '#0D111C', lineHeight: 1, WebkitTextStroke: '0.1px #0D111C' }}>RC</span>
             </div>
 
             {open && (
