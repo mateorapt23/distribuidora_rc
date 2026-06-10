@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 
@@ -411,8 +412,11 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   // Vinculación de ítems XML a productos del inventario
   const [sugerenciasXML, setSugerenciasXML] = useState({}); // { filaId: [productos] }
   const [vinculacionXML, setVinculacionXML] = useState({}); // { filaId: producto | null }
-  const autocompleteRef = useRef(null);
-  const busquedaTimeout = useRef(null);
+  const autocompleteRef  = useRef(null);
+  const dropdownRef      = useRef(null);
+  const activeInputRef   = useRef(null);
+  const busquedaTimeout  = useRef(null);
+  const [dropdownInitPos, setDropdownInitPos] = useState({ top: 0, left: 0, dropWidth: 300, maxDropHeight: 380 });
 
   // Cargar datos desde Historial (Ver en nueva compra)
   useEffect(() => {
@@ -443,32 +447,89 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   }, [datosEdicion]);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(e.target)) {
+    // Cerrar al hacer click fuera del dropdown
+    const onMouseDown = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setSugerencias([]); setFilaActiva(null);
+        activeInputRef.current = null;
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    // Cerrar al presionar Escape
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSugerencias([]); setFilaActiva(null);
+        activeInputRef.current = null;
+      }
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
   }, []);
 
+  // Scroll: mover el dropdown directamente en DOM sin re-render (igual que Tabla)
+  useEffect(() => {
+    const handleScroll = () => {
+      if (dropdownRef.current && activeInputRef.current) {
+        const rect = activeInputRef.current.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom - 8;
+        const maxDropHeight = Math.min(380, Math.max(150, spaceBelow));
+        dropdownRef.current.style.top       = `${rect.bottom + 4}px`;
+        dropdownRef.current.style.left      = `${rect.left}px`;
+        dropdownRef.current.style.width     = `${Math.max(300, rect.right - rect.left)}px`;
+        dropdownRef.current.style.maxHeight = `${maxDropHeight}px`;
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
+  }, []);
+
+  const calcularPosicion = (e) => {
+    activeInputRef.current = e.target;
+    const rect = e.target.getBoundingClientRect();
+    const dropWidth = Math.max(300, rect.right - rect.left);
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const maxDropHeight = Math.min(380, Math.max(150, spaceBelow));
+    if (dropdownRef.current) {
+      dropdownRef.current.style.top       = `${rect.bottom + 4}px`;
+      dropdownRef.current.style.left      = `${rect.left}px`;
+      dropdownRef.current.style.maxHeight = `${maxDropHeight}px`;
+    }
+    return { top: rect.bottom + 4, left: rect.left, dropWidth, maxDropHeight };
+  };
+
   const buscarProductos = useCallback(async (texto, filaId) => {
-    if (!texto || texto.length < 2) { setSugerencias([]); return; }
+    if (!texto || texto.trim().length < 2) { setSugerencias([]); return; }
     try {
-      const { data } = await api.get(`/productos/buscar?q=${encodeURIComponent(texto)}&limit=8`);
-      setSugerencias(data.data || []);
+      // Una sola query con la frase completa — el backend hace AND de tokens,
+      // así "tubo 3 plastigama" solo devuelve productos que tengan las 3 palabras.
+      const { data } = await api.get(
+        `/productos/buscar?q=${encodeURIComponent(texto.trim())}&limit=100`
+      );
+      const productos = data.data || [];
+      const ordenados = productos
+        .map(p => ({ ...p, _s: calcularScoreBidireccional(texto, p.descripcion) }))
+        .filter(p => p._s > 0)
+        .sort((a, b) => b._s - a._s || a.descripcion.localeCompare(b.descripcion));
+      setSugerencias(ordenados);
       setFilaActiva(filaId);
     } catch { setSugerencias([]); }
   }, []);
 
-  const onCambioCodigo = (filaId, valor) => {
+  const onCambioCodigo = (filaId, valor, e) => {
     actualizarFila(filaId, { codigo: valor, producto_id: null });
+    const pos = calcularPosicion(e);
+    setDropdownInitPos(pos);
     clearTimeout(busquedaTimeout.current);
     busquedaTimeout.current = setTimeout(() => buscarProductos(valor, filaId), 250);
   };
 
-  const onCambioDesc = (filaId, valor) => {
+  const onCambioDesc = (filaId, valor, e) => {
     actualizarFila(filaId, { descripcion: valor, producto_id: null });
+    const pos = calcularPosicion(e);
+    setDropdownInitPos(pos);
     clearTimeout(busquedaTimeout.current);
     busquedaTimeout.current = setTimeout(() => buscarProductos(valor, filaId), 250);
   };
@@ -479,6 +540,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
       costo: parseFloat(p.pvp1) || 0, iva: parseFloat(p.iva) || 0,
     }, true);
     setSugerencias([]); setFilaActiva(null);
+    activeInputRef.current = null;
   };
 
   const actualizarFila = (filaId, cambios, recalcular = false) => {
@@ -528,6 +590,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
 
           // Queries: cada token individual + frases cortas (sin duplicados)
           const queries = [...new Set([
+            fila.descripcion.trim(),
             ...tokens,
             tokens.slice(0, 2).join(' '),
             tokens.slice(0, 3).join(' '),
@@ -536,7 +599,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
           // Búsqueda paralela — todos los queries a la vez
           const sets = await Promise.all(
             queries.map(q =>
-              api.get(`/productos/buscar?q=${encodeURIComponent(q)}&limit=15`)
+              api.get(`/productos/buscar?q=${encodeURIComponent(q)}&limit=100`)
                 .then(r => r.data.data || [])
                 .catch(() => [])
             )
@@ -961,9 +1024,6 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
                 actualizarFila={actualizarFila}
                 eliminarFila={eliminarFila}
                 puedeEliminar={filas.length > 1}
-                sugerencias={filaActiva === fila._id ? sugerencias : []}
-                seleccionarProducto={seleccionarProducto}
-                autocompleteRef={autocompleteRef}
                 sugerenciasXML={sugerenciasXML[fila._id] || []}
                 vinculacionXML={vinculacionXML[fila._id] || null}
                 onVincularXML={(prod) => setVinculacionXML(prev => ({ ...prev, [fila._id]: prod }))}
@@ -985,6 +1045,69 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
             </button>
           </div>
         </div>
+
+        {/* ── Dropdown autocomplete — portal al body para escapar overflow/transform ── */}
+        {filaActiva !== null && sugerencias.length > 0 && ReactDOM.createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: 'fixed',
+              top:  dropdownInitPos.top,
+              left: dropdownInitPos.left,
+              width: dropdownInitPos.dropWidth || 300,
+              zIndex: 99999,
+              background: '#ffffff',
+              border: '1px solid #e5e7eb',
+              borderRadius: 10,
+              maxHeight: dropdownInitPos.maxDropHeight || 380,
+              overflowY: 'auto',
+              boxShadow: '0 8px 28px rgba(0,0,0,0.16)',
+            }}
+          >
+            {/* Cabecera fija */}
+            <div style={{
+              padding: '5px 12px', borderBottom: '1px solid #e5e7eb',
+              background: '#f9fafb', borderRadius: '10px 10px 0 0',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              position: 'sticky', top: 0, zIndex: 1,
+            }}>
+              <span style={{ fontSize: 10.5, color: '#9ca3af', fontWeight: 700,
+                letterSpacing: .8, textTransform: 'uppercase' }}>
+                {sugerencias.length} producto{sugerencias.length !== 1 ? 's' : ''}
+              </span>
+              <span style={{ fontSize: 10, color: '#9ca3af' }}>clic para seleccionar</span>
+            </div>
+            {/* Grid de 2 columnas */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+              {sugerencias.map((p, i) => (
+                <div key={p.id} className="sugg-row"
+                  onMouseDown={() => seleccionarProducto(filaActiva, p)}
+                  style={{
+                    padding: '7px 12px', cursor: 'pointer',
+                    borderBottom: '1px solid #e5e7eb',
+                    borderRight: i % 2 === 0 ? '1px solid #e5e7eb' : 'none',
+                    display: 'grid', gridTemplateColumns: '80px 1fr auto',
+                    gap: 7, alignItems: 'center', transition: 'background .1s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                  <span style={{ color: '#9ca3af', fontSize: 10.5, fontFamily: 'monospace',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.codigo}
+                  </span>
+                  <span style={{ color: '#111827', fontSize: 12,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.descripcion}
+                  </span>
+                  <Chip color={D.teal} bg={D.tealBg} border={D.tealBdr}>
+                    {parseFloat(p.stock)}
+                  </Chip>
+                </div>
+              ))}
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* ── Barra de resumen + acciones (horizontal, ancho completo) ── */}
         <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16,
@@ -1111,7 +1234,7 @@ function TablaHeader({ modoXML, todosM, algunoM, toggleTodos }) {
 
 // ── Item row compacto con grid ─────────────────────────────
 function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
-  eliminarFila, puedeEliminar, sugerencias, seleccionarProducto, autocompleteRef,
+  eliminarFila, puedeEliminar,
   sugerenciasXML, vinculacionXML, onVincularXML, modoXML }) {
 
   const [mostrarSugsXML, setMostrarSugsXML] = useState(false);
@@ -1126,11 +1249,11 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
     setBuscandoXML(true);
     try {
       const tokens = texto.trim().split(/\s+/).filter(p => p.length >= 2);
-      const queries = [...new Set([...tokens, tokens.slice(0, 2).join(' ')])];
+      const queries = [...new Set([texto.trim(), ...tokens, tokens.slice(0, 2).join(' ')])];
 
       const sets = await Promise.all(
         queries.map(q =>
-          api.get(`/productos/buscar?q=${encodeURIComponent(q)}&limit=12`)
+          api.get(`/productos/buscar?q=${encodeURIComponent(q)}&limit=100`)
             .then(r => r.data.data || [])
             .catch(() => [])
         )
@@ -1146,7 +1269,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
       const ordenados = [...mapa.values()]
         .filter(p => p._score > 0)
         .sort((a, b) => b._score - a._score)
-        .slice(0, 8);
+        .slice(0, 20);
       setResBusqXML(ordenados);
     } catch { setResBusqXML([]); }
     finally { setBuscandoXML(false); }
@@ -1183,43 +1306,16 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
       {/* Código */}
       <div style={{ position: 'relative' }}>
         <input value={fila.codigo}
-          onChange={e => onCambioCodigo(fila._id, e.target.value)}
+          onChange={e => onCambioCodigo(fila._id, e.target.value, e)}
+          onFocus={e => { if (fila.codigo.length >= 2) { onCambioCodigo(fila._id, fila.codigo, e); } }}
           placeholder="Cód." style={cInp} />
-        {sugerencias.length > 0 && (
-          <div ref={autocompleteRef} style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 100,
-            background: '#ffffff', border: '1px solid #e5e7eb',
-            borderRadius: 10, minWidth: 380, maxHeight: 230,
-            overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-          }}>
-            {sugerencias.map(p => (
-              <div key={p.id} className="sugg-row"
-                onMouseDown={() => seleccionarProducto(fila._id, p)}
-                style={{ padding: '10px 14px', cursor: 'pointer',
-                  borderBottom: '1px solid #e5e7eb',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  transition: 'background .1s' }}>
-                <div>
-                  <span style={{ color: '#9ca3af', fontSize: 11, fontFamily: 'monospace', marginRight: 10 }}>
-                    {p.codigo}
-                  </span>
-                  <span style={{ color: '#111827', fontSize: 13 }}>
-                    {p.descripcion.length > 38 ? p.descripcion.slice(0, 36) + '..' : p.descripcion}
-                  </span>
-                </div>
-                <Chip color={D.teal} bg={D.tealBg} border={D.tealBdr}>
-                  {parseFloat(p.stock)}
-                </Chip>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Descripción */}
       <div style={{ position: 'relative' }}>
         <input value={fila.descripcion}
-          onChange={e => onCambioDesc(fila._id, e.target.value)}
+          onChange={e => onCambioDesc(fila._id, e.target.value, e)}
+          onFocus={e => { if (fila.descripcion.length >= 2) { onCambioDesc(fila._id, fila.descripcion, e); } }}
           placeholder="Descripción" style={{ ...cInp, minWidth: 0 }} />
       </div>
 
@@ -1438,6 +1534,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
           transition: 'all .15s' }}>
         {Ico.trash}
       </button>
+
     </div>
   );
 }

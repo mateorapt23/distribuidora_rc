@@ -323,17 +323,26 @@ const fixInventariable = async (req, res) => {
 
 // Búsqueda rápida para autocomplete (usada desde Compras y otros)
 const buscarProductos = async (req, res) => {
-  const { q = '', limit = 8 } = req.query;
+  const { q = '', limit = 100 } = req.query;
   if (!q || q.trim().length < 1) return res.json({ data: [] });
   try {
+    // Dividir en tokens para búsqueda AND multi-palabra:
+    // "tubo abrazadera" → encuentra productos que contengan AMBAS palabras
+    const terminos = q.trim().split(/\s+/).filter(t => t.length >= 1);
+    const params = [];
+    const conds = terminos.map(t => {
+      params.push(`%${t}%`);
+      return `(codigo ILIKE $${params.length} OR descripcion ILIKE $${params.length})`;
+    });
+    params.push(parseInt(limit));
     const { rows } = await pool.query(
       `SELECT id, codigo, descripcion, stock, iva, pvp1, pvp2
        FROM productos
        WHERE activo = TRUE
-         AND (codigo ILIKE $1 OR descripcion ILIKE $1)
+         AND ${conds.join(' AND ')}
        ORDER BY descripcion ASC
-       LIMIT $2`,
-      [`%${q.trim()}%`, parseInt(limit)]
+       LIMIT $${params.length}`,
+      params
     );
     res.json({ data: rows });
   } catch (err) {

@@ -19,7 +19,33 @@ const IcoPDF      = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="
 const IcoCapture  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
 const IcoX        = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 const IcoDownload = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-const IcoWarn = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const IcoWarn     = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+// ── Scoring de relevancia para el autocomplete ─────────────
+const _normT = (s) => s.toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').trim();
+const _tokT  = (s) => _normT(s).split(/\s+/).filter(t => t.length >= 2);
+
+const scoreProductoTabla = (query, prod) => {
+  const q   = _normT(query);
+  const cod = _normT(prod.codigo || '');
+  const des = _normT(prod.descripcion || '');
+  if (cod === q || des === q)                       return 100;
+  if (cod.startsWith(q) || des.startsWith(q))       return  80;
+  if (cod.includes(q)   || des.includes(q))          return  60;
+  const tQ = _tokT(query);
+  const tD = _tokT(prod.descripcion || '');
+  if (tQ.length === 0 || tD.length === 0) return 0;
+  let score = 0, hits = 0;
+  tQ.forEach(t => {
+    if (tD.some(d => d === t))                              { score += 4; hits++; }
+    else if (tD.some(d => d.startsWith(t)||t.startsWith(d))){ score += 2; hits++; }
+    else if (tD.some(d => d.includes(t)||t.includes(d)))    { score += 1; hits++; }
+    else if (cod.includes(t))                               { score += 1; hits++; }
+  });
+  const minCov = tQ.length === 1 ? 1.0 : tQ.length <= 3 ? 0.5 : 0.4;
+  if (hits / tQ.length < minCov) return 0;
+  return score;
+};
 
 const filaVacia = () => ({
   _id: Math.random(), producto_id: null, codigo: '',
@@ -43,6 +69,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [pdfGenerando, setPdfGenerando] = useState(false);
   const [pdfOpcion, setPdfOpcion]       = useState(1);
   const [pdfEsTermica, setPdfEsTermica] = useState(false);
+  const [localImgBase64, setLocalImgBase64] = useState('');
   const [idEdicion, setIdEdicion]       = useState(null);
   const [tipoEdicion, setTipoEdicion]   = useState(null);
   const [tipoNuevo, setTipoNuevo]       = useState('recibo');
@@ -75,7 +102,30 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const activeInputRef   = useRef(null);
   const busquedaTimeout  = useRef(null);
 
-  // Obtener próximo número al montar y al cambiar tipoNuevo (solo cuando no hay edición)
+  // Cargar imagen del local como base64 comprimida para embeber en PDF/captura
+  // Se redimensiona a máx 600px ancho y JPEG 0.75 para no superar el límite de body de Express
+  useEffect(() => {
+    fetch('/LOCAL.jpg')
+      .then(r => r.blob())
+      .then(blob => {
+        const img = new Image();
+        const url = URL.createObjectURL(blob);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const MAX_W = 600;
+          const ratio = Math.min(1, MAX_W / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width  = Math.round(img.width  * ratio);
+          canvas.height = Math.round(img.height * ratio);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          setLocalImgBase64(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        img.src = url;
+      })
+      .catch(() => {});
+  }, []);
+
+  // y al cambiar tipoNuevo (solo cuando no hay edición)
   useEffect(() => {
     if (idEdicion) return;
     const obtenerNumero = async () => {
@@ -133,8 +183,12 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     const handleScroll = () => {
       if (dropdownRef.current && activeInputRef.current) {
         const rect = activeInputRef.current.getBoundingClientRect();
-        dropdownRef.current.style.top  = `${rect.bottom + 4}px`;
-        dropdownRef.current.style.left = `${rect.left}px`;
+        const spaceBelow = window.innerHeight - rect.bottom - 8;
+        const maxDropHeight = Math.min(380, Math.max(150, spaceBelow));
+        dropdownRef.current.style.top       = `${rect.bottom + 4}px`;
+        dropdownRef.current.style.left      = `${rect.left}px`;
+        dropdownRef.current.style.width     = `${Math.max(300, rect.right - rect.left)}px`;
+        dropdownRef.current.style.maxHeight = `${maxDropHeight}px`;
       }
     };
     window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
@@ -144,20 +198,33 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const calcularPosicion = (e) => {
     activeInputRef.current = e.target;
     const rect = e.target.getBoundingClientRect();
+    const dropWidth = Math.max(300, rect.right - rect.left);
+    const spaceBelow = window.innerHeight - rect.bottom - 8;
+    const maxDropHeight = Math.min(380, Math.max(150, spaceBelow));
     if (dropdownRef.current) {
-      dropdownRef.current.style.top  = `${rect.bottom + 4}px`;
-      dropdownRef.current.style.left = `${rect.left}px`;
+      dropdownRef.current.style.top       = `${rect.bottom + 4}px`;
+      dropdownRef.current.style.left      = `${rect.left}px`;
+      dropdownRef.current.style.width     = `${dropWidth}px`;
+      dropdownRef.current.style.maxHeight = `${maxDropHeight}px`;
     }
-    return { top: rect.bottom + 4, left: rect.left };
+    return { top: rect.bottom + 4, left: rect.left, dropWidth, maxDropHeight };
   };
 
-  const [dropdownInitPos, setDropdownInitPos] = useState({ top: 0, left: 0 });
+  const [dropdownInitPos, setDropdownInitPos] = useState({ top: 0, left: 0, dropWidth: 300, maxDropHeight: 380 });
 
   const buscarProductos = useCallback(async (texto, filaId) => {
-    if (!texto || texto.length < 2) { setSugerencias([]); return; }
+    if (!texto || texto.trim().length < 2) { setSugerencias([]); return; }
     try {
-      const { data } = await api.get(`/productos?buscar=${encodeURIComponent(texto)}&limit=8`);
-      setSugerencias(data.data || []); setFilaActiva(filaId);
+      // Una sola query con la frase completa → el backend hace AND de todos los tokens
+      // Así "tubo 3 plastigama" solo devuelve productos que contengan LAS TRES palabras
+      const { data } = await api.get(`/productos/buscar?q=${encodeURIComponent(texto.trim())}&limit=100`);
+      const resultados = data.data || [];
+      const ordenados = resultados
+        .map(p => ({ ...p, _s: scoreProductoTabla(texto, p) }))
+        .filter(p => p._s > 0)
+        .sort((a, b) => b._s - a._s || a.descripcion.localeCompare(b.descripcion));
+      setSugerencias(ordenados);
+      setFilaActiva(filaId);
     } catch { setSugerencias([]); }
   }, []);
 
@@ -292,7 +359,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       html = generarHTMLTabla({
         tipo: tipoDoc, numero: numeroDoc,
         cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-        filas: filasValidas, subtotalBase, total,
+        filas: filasValidas, subtotalBase, total, imgLocal: localImgBase64,
       });
     }
     return { html, nombre };
@@ -579,7 +646,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
     const html       = generarHTMLCaptura({
       tipo: tipoDoc, numero: numeroDoc,
       cliente: cliente || 'Consumidor Final', fecha, notas: notes,
-      filas: filasValidas, subtotalBase, total,
+      filas: filasValidas, subtotalBase, total, imgLocal: localImgBase64,
     });
 
     const htmlCompleto = `<!DOCTYPE html>
@@ -640,14 +707,34 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         {/* Header empresa */}
         <div style={{ display: 'flex', alignItems: 'stretch' }}>
           <div style={{ background: '#F5C400', flex: 1, padding: '14px 20px',
-            display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#111', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Ferreteria Carrión
+            display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16,
+            position: 'relative', overflow: 'hidden' }}>
+            {/* Datos empresa */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flexShrink: 0 }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#111', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Ferreteria Carrión
+              </div>
+              <div style={{ fontSize: 11, color: '#333', marginTop: 5, lineHeight: 1.8 }}>
+                <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
+                <strong>TELÉFONO:</strong> 0998024883 – 0984666022
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: '#333', marginTop: 5, lineHeight: 1.8 }}>
-              <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
-              <strong>TELÉFONO:</strong> 0998024883 – 0984666022
-            </div>
+            {/* Foto del local — absoluta, no expande el header */}
+            <img
+              src="/LOCAL.jpg"
+              alt="Local Ferretería Carrión"
+              style={{
+                position: 'absolute',
+                left: '60%',
+                top: '50%',
+                transform: 'translate(-50%, -50%)',
+                height: 'calc(100% - 12px)',
+                width: 260,
+                objectFit: 'fill',
+                borderRadius: 6,
+                border: '2px solid rgba(0,0,0,0.15)',
+              }}
+            />
           </div>
           <div data-capture-header-tipo="true" style={{ background: '#0D111C', minWidth: 200, display: 'flex',
             flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -819,7 +906,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                       onChange={e => onCambioCodigo(fila._id, e.target.value, e)}
                       onFocus={e => {
                         if (fila.codigo.length >= 2) {
-                          calcularPosicion(e);
+                          const pos = calcularPosicion(e);
+                          setDropdownInitPos(pos);
                           buscarProductos(fila.codigo, fila._id);
                         }
                       }}
@@ -837,7 +925,8 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
                       onChange={e => onCambioDescripcion(fila._id, e.target.value, e)}
                       onFocus={e => {
                         if (fila.descripcion.length >= 2) {
-                          calcularPosicion(e);
+                          const pos = calcularPosicion(e);
+                          setDropdownInitPos(pos);
                           buscarProductos(fila.descripcion, fila._id);
                         }
                       }}
@@ -1002,7 +1091,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         </div>
       </div>
 
-      {/* Dropdown autocomplete */}
+      {/* Dropdown autocomplete — 2 columnas, ancho = ancho del input activo */}
       {filaActiva !== null && sugerencias.length > 0 && (
         <div
           ref={dropdownRef}
@@ -1010,48 +1099,68 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
             position: 'fixed',
             top:  dropdownInitPos.top,
             left: dropdownInitPos.left,
-            width: 440,
+            width: dropdownInitPos.dropWidth || 300,
             zIndex: 9999,
             background: '#fff',
             border: `1px solid ${C.border}`,
             borderRadius: 12,
-            maxHeight: 260,
+            maxHeight: dropdownInitPos.maxDropHeight || 380,
             overflowY: 'auto',
-            boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
           }}
         >
-          {sugerencias.map(p => (
-            <div key={p.id}
-              onMouseDown={() => seleccionarProducto(filaActiva, p)}
-              style={{
-                padding: '10px 16px', cursor: 'pointer',
-                borderBottom: `1px solid ${C.border}`,
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                transition: 'background .1s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
-              onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ color: C.textDim, fontSize: 11, fontFamily: 'monospace' }}>{p.codigo}</span>
-                <span style={{ color: C.textSec, fontSize: 13 }}>
-                  {p.descripcion.length > 38 ? p.descripcion.slice(0, 36) + '..' : p.descripcion}
+          {/* Cabecera fija */}
+          <div style={{
+            padding: '6px 14px', borderBottom: `1px solid ${C.border}`,
+            background: '#f9fafb', borderRadius: '12px 12px 0 0',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            position: 'sticky', top: 0, zIndex: 1,
+          }}>
+            <span style={{ fontSize: 11, color: C.textDim, fontWeight: 700, letterSpacing: .8, textTransform: 'uppercase' }}>
+              {sugerencias.length} producto{sugerencias.length !== 1 ? 's' : ''} encontrado{sugerencias.length !== 1 ? 's' : ''}
+            </span>
+            <span style={{ fontSize: 10, color: C.textDim }}>clic para seleccionar</span>
+          </div>
+          {/* Grid de 2 columnas */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+            {sugerencias.map((p, i) => (
+              <div key={p.id}
+                onMouseDown={() => seleccionarProducto(filaActiva, p)}
+                style={{
+                  padding: '8px 12px', cursor: 'pointer',
+                  borderBottom: `1px solid ${C.border}`,
+                  borderRight: i % 2 === 0 ? `1px solid ${C.border}` : 'none',
+                  display: 'grid',
+                  gridTemplateColumns: '82px 1fr auto',
+                  gap: 8, alignItems: 'center',
+                  transition: 'background .1s',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
+                onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+                <span style={{ color: C.textDim, fontSize: 10.5, fontFamily: 'monospace',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.codigo}
                 </span>
+                <span style={{ color: C.textSec, fontSize: 12.5,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.descripcion}
+                </span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                  <span style={{ color: C.amarillo, fontWeight: 700, fontSize: 11.5, whiteSpace: 'nowrap' }}>
+                    ${(parseFloat(p.pvp1) * (1 + (parseFloat(p.iva) || 0) / 100)).toFixed(2)}
+                  </span>
+                  <span style={{
+                    fontSize: 10, padding: '2px 6px', borderRadius: 20, whiteSpace: 'nowrap',
+                    background: p.inventariable && parseFloat(p.stock) <= 0 ? '#fef2f2' : '#f0fdf4',
+                    color: p.inventariable && parseFloat(p.stock) <= 0 ? C.rojo : C.verde,
+                    fontWeight: 600,
+                  }}>
+                    {parseFloat(p.stock)}
+                  </span>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
-                <span style={{ color: C.amarillo, fontWeight: 700, fontSize: 13 }}>
-                  ${(parseFloat(p.pvp1) * (1 + (parseFloat(p.iva) || 0) / 100)).toFixed(2)}
-                </span>
-                <span style={{
-                  fontSize: 11, padding: '2px 8px', borderRadius: 20,
-                  background: p.inventariable && parseFloat(p.stock) <= 0 ? '#fef2f2' : '#f0fdf4',
-                  color: p.inventariable && parseFloat(p.stock) <= 0 ? C.rojo : C.verde,
-                  fontWeight: 600,
-                }}>
-                  Stock: {parseFloat(p.stock)}
-                </span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
@@ -1200,7 +1309,7 @@ const celdaSt = {
   outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
 };
 
-export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total }) => `
+export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total, imgLocal }) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -1214,21 +1323,28 @@ export const generarHTMLTabla = ({ tipo, numero, cliente, fecha, notas, filas, s
   </style>
 </head>
 <body>
-${generarHTMLCaptura({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total })}
+${generarHTMLCaptura({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total, imgLocal, pdf: true })}
 </body>
 </html>
 `;
 
-export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total }) => `
+export const generarHTMLCaptura = ({ tipo, numero, cliente, fecha, notas, filas, subtotalBase, total, imgLocal, pdf = false }) => `
 <div style="font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;">
   <div style="display:flex;align-items:stretch;border:2px solid #333;">
-    <div style="background:#F5C400;flex:1;padding:14px 20px;">
-      <div style="font-size:22px;font-weight:900;color:#111;text-transform:uppercase;letter-spacing:0.5px;">Ferreteria Carrión</div>
-      <div style="font-size:11px;color:#333;margin-top:5px;line-height:1.8;">
-        <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
-        <strong>TELÉFONO:</strong> 0998024883 – 0984666022
-      </div>
-    </div>
+    ${pdf
+      ? `<div style="background:#F5C400;flex:1;padding:14px 20px;display:flex;align-items:center;gap:16px;min-width:0;overflow:hidden;">
+          <div style="flex:none;">
+            <div style="font-size:22px;font-weight:900;color:#111;text-transform:uppercase;letter-spacing:0.5px;">Ferreteria Carrión</div>
+            <div style="font-size:11px;color:#333;margin-top:5px;line-height:1.8;"><strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/><strong>TELÉFONO:</strong> 0998024883 – 0984666022</div>
+          </div>
+          ${imgLocal ? `<div style="flex:1;display:flex;justify-content:center;align-items:center;overflow:hidden;"><img src="${imgLocal}" style="max-height:70px;max-width:220px;width:auto;height:auto;object-fit:fill;border-radius:6px;border:2px solid rgba(0,0,0,0.15);" /></div>` : ''}
+        </div>`
+      : `<div style="background:#F5C400;flex:1;padding:14px 20px;position:relative;overflow:hidden;">
+          <div style="font-size:22px;font-weight:900;color:#111;text-transform:uppercase;letter-spacing:0.5px;">Ferreteria Carrión</div>
+          <div style="font-size:11px;color:#333;margin-top:5px;line-height:1.8;"><strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/><strong>TELÉFONO:</strong> 0998024883 – 0984666022</div>
+          ${imgLocal ? `<img src="${imgLocal}" style="position:absolute;left:60%;top:50%;transform:translate(-50%,-50%);height:calc(100% - 12px);width:260px;object-fit:fill;border-radius:6px;border:2px solid rgba(0,0,0,0.15);" />` : ''}
+        </div>`
+    }
     <div style="background:#0D111C;min-width:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 20px;gap:4px;">
       <div style="font-size:18px;font-weight:900;color:${(tipo?.toLowerCase() === 'recibo' || tipo?.toLowerCase() === 'nota de entrega') ? '#6ee7b7' : '#93c5fd'};text-transform:uppercase;letter-spacing:1px;">${(tipo || 'DOCUMENTO').toUpperCase()}</div>
       ${numero ? `<div style="font-size:12px;font-weight:700;color:${(tipo?.toLowerCase() === 'recibo' || tipo?.toLowerCase() === 'nota de entrega') ? '#6ee7b7' : '#93c5fd'};letter-spacing:0.5px;">${numero}</div>` : ''}

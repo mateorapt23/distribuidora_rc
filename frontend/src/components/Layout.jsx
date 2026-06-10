@@ -28,7 +28,7 @@ const NAV_SECTIONS = [
   {
     label: 'Operaciones',
     items: [
-      { to: '/documentos',  label: 'Proformas / Recibos', icon: 'documentos' },
+      { to: '/documentos',  label: 'Proformas / Notas de E.', icon: 'documentos' },
       { to: '/compras',     label: 'Compras',             icon: 'compras',   roles: ['admin'] },
       { to: '/facturas-ef', label: 'Facturas Efacilito',  icon: 'facturas',  roles: ['admin'] },
     ],
@@ -219,11 +219,9 @@ export default function Layout({ children }) {
               background: 'linear-gradient(135deg, #F5C400, #e6a800)',
               borderRadius: 9,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(245,196,0,0.22)',
+              boxShadow: '0 0 14px rgba(245,196,0,0.65), 0 0 28px rgba(245,196,0,0.28), 0 2px 6px rgba(0,0,0,0.35)',
             }}>
-              <svg viewBox="0 0 16 16" style={{ width: 15, height: 15, stroke: '#0D111C', strokeWidth: 2.5, fill: 'none', strokeLinecap: 'round' }}>
-                <path d="M2 8h12M8 2v12" />
-              </svg>
+              <span style={{ fontSize: 17, fontWeight: 900, color: '#0D111C', lineHeight: 1, WebkitTextStroke: '0.1px #0D111C' }}>FC</span>
             </div>
 
             {open && (
@@ -306,6 +304,7 @@ export default function Layout({ children }) {
               borderRadius: 8,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700, color: '#0D111C',
+              boxShadow: '0 0 12px rgba(245,196,0,0.60), 0 0 24px rgba(245,196,0,0.22), 0 2px 4px rgba(0,0,0,0.30)',
             }}>
               {initials}
             </div>
