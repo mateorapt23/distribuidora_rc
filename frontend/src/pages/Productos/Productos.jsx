@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -22,6 +23,8 @@ const IcoTrash  = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="no
 export default function Productos() {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'admin';
+  const { isMobile } = useBreakpoint();
+  const pad = isMobile ? 16 : 28;
 
   const [productos, setProductos]       = useState([]);
   const [total, setTotal]               = useState(0);
@@ -123,7 +126,7 @@ export default function Productos() {
 
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80,
+        padding: `0 ${pad}px`, height: 80,
         display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
@@ -137,11 +140,11 @@ export default function Productos() {
         </div>
       </div>
 
-      <div style={{ padding: '24px 28px' }}>
+      <div style={{ padding: `clamp(16px, 3vw, 24px) ${pad}px` }}>
 
         {/* Barra de acciones */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: 240, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: isMobile ? 0 : 240, position: 'relative' }}>
             <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
               width: 15, height: 15, stroke: C.textDim, fill: 'none', strokeWidth: 2, strokeLinecap: 'round' }}
               viewBox="0 0 24 24">
@@ -179,6 +182,7 @@ export default function Productos() {
         {/* Tabla */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`,
           borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#f9fafb' }}>
@@ -237,6 +241,7 @@ export default function Productos() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Paginación */}
@@ -253,7 +258,7 @@ export default function Productos() {
       {modalAbierto && (
         <Modal titulo={editando ? 'Editar producto' : 'Nuevo producto'} onClose={() => setModalAbierto(false)}>
           {error && <ErrorBox msg={error} />}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <Campo label="Código" span={1}><Input value={form.codigo} onChange={v => setForm({ ...form, codigo: v })} placeholder="Ej: P001" /></Campo>
             <Campo label="Inventariable" span={1}>
               <select value={form.inventariable ? 'true' : 'false'}
@@ -338,8 +343,9 @@ const Campo = ({ label, children, span = 1 }) => (
 
 const Modal = ({ titulo, onClose, children, maxWidth = 520 }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-    <div style={{ background: '#fff', borderRadius: 16, padding: 28,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
+    padding: '16px' }}>
+    <div style={{ background: '#fff', borderRadius: 16, padding: 'clamp(16px, 4vw, 28px)',
       width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto',
       boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../api/config';
 import { generarHTML } from './Guardados';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -53,6 +54,7 @@ const filaVacia = () => ({
 });
 
 export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
+  const { isMobile } = useBreakpoint();
   const [cliente, setCliente]           = useState('');
   const [sugerenciasCliente, setSugerenciasCliente] = useState([]);
   const [clienteActivo, setClienteActivo]           = useState(false);
@@ -680,17 +682,22 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   };
 
   return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ padding: isMobile ? '14px 10px' : '24px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Toast flotante — filas manuales */}
       {filas.some(f => f.descripcion && !f.producto_id) && (
         <div style={{
-          position: 'fixed', top: 24, right: 24, zIndex: 9000,
+          position: 'fixed',
+          top: isMobile ? 'auto' : 24,
+          bottom: isMobile ? 80 : 'auto',
+          right: isMobile ? 10 : 24,
+          left: isMobile ? 10 : 'auto',
+          zIndex: 9000,
           display: 'flex', alignItems: 'flex-start', gap: 10,
           background: '#fffbeb', border: '1px solid #fcd34d',
           borderRadius: 10, padding: '12px 16px', fontSize: 12, color: '#92400e',
           boxShadow: '0 4px 16px rgba(0,0,0,0.13)',
-          maxWidth: 320, pointerEvents: 'none',
+          maxWidth: isMobile ? '100%' : 320, pointerEvents: 'none',
         }}>
           <span style={{ color: '#d97706', marginTop: 1, flexShrink: 0 }}><IcoWarn /></span>
           <span>
@@ -705,7 +712,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
         boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
 
         {/* Header empresa */}
-        <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <div style={{ display: 'flex', alignItems: 'stretch', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
           <div style={{ background: '#F5C400', flex: 1, padding: '14px 20px',
             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16,
             position: 'relative', overflow: 'hidden' }}>
@@ -736,9 +743,14 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
               }}
             />
           </div>
-          <div data-capture-header-tipo="true" style={{ background: '#0D111C', minWidth: 200, display: 'flex',
+          <div data-capture-header-tipo="true" style={{
+            background: '#0D111C',
+            minWidth: isMobile ? '100%' : 200,
+            width: isMobile ? '100%' : undefined,
+            display: 'flex',
             flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            padding: '14px 20px', gap: 6 }}>
+            padding: '14px 20px', gap: 6,
+          }}>
             {idEdicion ? (
               /* MODO EDICIÓN: mostrar tipo + número, sin opción a cambiar */
               <>
@@ -1033,57 +1045,61 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
       {/* Barra de acciones */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center',
+        justifyContent: isMobile ? 'stretch' : 'space-between',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 10 : 8,
         background: C.card, border: `1px solid ${C.border}`,
         borderRadius: 12, padding: '12px 16px',
         boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
       }}>
         <button onClick={limpiarTodo}
-          style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'none',
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: 'none',
             border: `1px solid ${C.border}`, color: C.textDim, borderRadius: 8,
             padding: '9px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-            transition: 'all .15s' }}
+            transition: 'all .15s', width: isMobile ? '100%' : undefined }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = C.rojo; e.currentTarget.style.color = C.rojo; e.currentTarget.style.background = '#fef2f2'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.color = C.textDim; e.currentTarget.style.background = 'none'; }}>
           <IcoClear /> Limpiar todo
         </button>
 
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: isMobile ? '100%' : undefined }}>
           <button onClick={imprimirTermica}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff',
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#fff',
               border: `1px solid #6b7280`, color: '#374151', borderRadius: 8,
               padding: '9px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-              transition: 'all .15s' }}
+              transition: 'all .15s', flex: isMobile ? '1 1 auto' : undefined }}
             onMouseEnter={e => { e.currentTarget.style.background = '#f9fafb'; e.currentTarget.style.borderColor = '#374151'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#6b7280'; }}>
             <IcoThermal /> Térmica
           </button>
 
           <button onClick={abrirPDF}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff',
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#fff',
               border: `1px solid ${C.azul}`, color: C.azul, borderRadius: 8,
               padding: '9px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-              transition: 'all .15s' }}
+              transition: 'all .15s', flex: isMobile ? '1 1 auto' : undefined }}
             onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}>
-            <IcoPDF /> Vista Previa PDF
+            <IcoPDF /> {isMobile ? 'PDF' : 'Vista Previa PDF'}
           </button>
 
           <button onClick={tomarCaptura}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff',
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: '#fff',
               border: `1px solid #8b5cf6`, color: '#8b5cf6', borderRadius: 8,
               padding: '9px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-              transition: 'all .15s' }}
+              transition: 'all .15s', flex: isMobile ? '1 1 auto' : undefined }}
             onMouseEnter={e => { e.currentTarget.style.background = '#f5f3ff'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}>
             <IcoCapture /> Captura
           </button>
 
           <button onClick={() => setModalGuardar(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, background: C.verde,
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: C.verde,
               border: 'none', color: '#fff', borderRadius: 8,
               padding: '9px 20px', fontWeight: 700, fontSize: 13, cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(16,185,129,0.25)', transition: 'all .15s' }}
+              boxShadow: '0 2px 8px rgba(16,185,129,0.25)', transition: 'all .15s',
+              flex: isMobile ? '1 1 auto' : undefined }}
             onMouseEnter={e => { e.currentTarget.style.background = '#059669'; }}
             onMouseLeave={e => { e.currentTarget.style.background = C.verde; }}>
             <IcoSave /> Guardar
@@ -1256,8 +1272,9 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
       {/* Modal confirmar guardar */}
       {modalGuardar && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: '#fff', borderRadius: 20, padding: '36px 32px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 20,
+            padding: 'clamp(20px, 5vw, 36px) clamp(16px, 5vw, 32px)',
             width: '100%', maxWidth: 420, textAlign: 'center',
             boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
             <div style={{ width: 56, height: 56,

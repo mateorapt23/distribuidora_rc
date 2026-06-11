@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 // ── Paleta dark premium ────────────────────────────────────
 const D = {
@@ -80,6 +81,7 @@ const Chip = ({ color, bg, border, children }) => (
 export default function Compras() {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'admin';
+  const { isMobile } = useBreakpoint();
   const [seccion, setSeccion] = useState('nueva');
   const [refrescar, setRefrescar] = useState(0);
   const [datosEdicion, setDatosEdicion] = useState(null);
@@ -125,7 +127,8 @@ export default function Compras() {
 
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb',
-        padding: '0 28px', height: 80,
+        padding: isMobile ? '14px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
         display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
@@ -136,8 +139,9 @@ export default function Compras() {
       </div>
 
       {/* Tabs */}
-      <div style={{ background: '#ffffff', borderBottom: '1px solid #e5e7eb', padding: '0 32px' }}>
-        <div style={{ display: 'flex' }}>
+      <div style={{ background: '#ffffff', borderBottom: '1px solid #e5e7eb',
+        padding: isMobile ? '0 12px' : '0 32px' }}>
+        <div style={{ display: 'flex', overflowX: 'auto' }}>
           {[
             { key: 'nueva',     label: 'Nueva compra', icon: Ico.new  },
             { key: 'historial', label: 'Historial',    icon: Ico.hist },
@@ -226,9 +230,9 @@ function ModalSRI({ onImportar, onCerrar }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,7,14,.8)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 200, padding: 24, backdropFilter: 'blur(4px)', animation: 'fadeIn .15s' }}>
+      zIndex: 200, padding: 12, backdropFilter: 'blur(4px)', animation: 'fadeIn .15s' }}>
       <div style={{ background: D.panel, border: `1px solid ${D.border}`, borderRadius: 20,
-        padding: '32px 36px', width: '100%', maxWidth: 500,
+        padding: 'clamp(16px, 4vw, 36px)', width: '100%', maxWidth: 500,
         boxShadow: '0 32px 80px rgba(0,0,0,.6)', animation: 'slideUp .2s ease' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 26 }}>
@@ -393,6 +397,7 @@ const calcularScoreBidireccional = (query, descripcion) => {
 
 // ══════════════════════════════════════════════════════════
 function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
+  const { isMobile } = useBreakpoint();
   const [proveedor, setProveedor]   = useState('');
   const [ruc, setRuc]               = useState('');
   const [fecha, setFecha]           = useState(new Date().toISOString().split('T')[0]);
@@ -732,16 +737,16 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   };
 
   return (
-    <div style={{ padding: '28px 32px', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ padding: `clamp(16px, 3vw, 28px) ${isMobile ? 16 : 32}px`, width: '100%', boxSizing: 'border-box' }}>
       {modalSRI && <ModalSRI onImportar={handleImportarSRI} onCerrar={() => setModalSRI(false)} />}
 
       {/* ── Modal de precios (se abre ANTES de guardar) ── */}
       {modalPrecios && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(5,7,14,.82)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 300, padding: 24, backdropFilter: 'blur(5px)', animation: 'fadeIn .15s' }}>
+          zIndex: 300, padding: 12, backdropFilter: 'blur(5px)', animation: 'fadeIn .15s' }}>
           <div style={{ background: '#ffffff', border: '1px solid #e5e7eb',
-            borderRadius: 20, padding: '32px 36px', width: '100%', maxWidth: 720,
+            borderRadius: 20, padding: 'clamp(16px, 4vw, 36px)', width: '100%', maxWidth: 720,
             maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 32px 80px rgba(0,0,0,.25)', animation: 'slideUp .2s ease' }}>
 
@@ -786,6 +791,8 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
             </div>
 
             {/* Cabecera columnas */}
+            <div style={{ overflowX: 'auto' }}>
+            <div style={{ minWidth: 520 }}>
             <div style={{ display: 'grid',
               gridTemplateColumns: '1fr 130px 110px 110px 75px',
               gap: 8, padding: '8px 12px', marginBottom: 4 }}>
@@ -857,6 +864,8 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
                   </div>
                 );
               })}
+            </div>
+            </div>
             </div>
 
             {/* Footer */}
@@ -961,7 +970,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
             </button>
           </div>
           <div style={{ padding: '20px 22px', display: 'grid',
-            gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 16 }}>
+            gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr 1fr 1fr', gap: 16 }}>
             <Field label="Proveedor" required>
               <input value={proveedor} onChange={e => setProveedor(e.target.value)}
                 placeholder="Nombre del proveedor" style={inp} />
@@ -1005,6 +1014,8 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
           </div>
 
           {/* Cabecera de columnas */}
+          <div style={{ overflowX: 'auto' }}>
+          <div style={{ minWidth: 680 }}>
           <TablaHeader
             modoXML={importadoSRI}
             todosM={filas.length > 0 && filas.every(f => f.guardarEnInventario)}
@@ -1030,6 +1041,8 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
                 modoXML={importadoSRI}
               />
             ))}
+          </div>
+          </div>
           </div>
 
           {/* Agregar fila */}
@@ -1111,8 +1124,14 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
 
         {/* ── Barra de resumen + acciones (horizontal, ancho completo) ── */}
         <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16,
-          padding: '14px 24px', display: 'flex', alignItems: 'center',
-          gap: 0, flexWrap: 'wrap' }}>
+          padding: isMobile ? '16px' : '14px 24px',
+          display: 'flex', alignItems: isMobile ? 'stretch' : 'center',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? 12 : 0, flexWrap: 'wrap' }}>
+
+          {/* Totales row (Subtotal + IVA + Total) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 0,
+            flexWrap: 'wrap', flex: isMobile ? 'none' : undefined }}>
 
           {/* Subtotal */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
@@ -1133,7 +1152,6 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
               ${totalIva.toFixed(2)}
             </span>
           </div>
-
           {/* Total */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
             paddingLeft: 28, paddingRight: 32 }}>
@@ -1143,11 +1161,12 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
               ${total.toFixed(2)}
             </span>
           </div>
+          </div>{/* end totales row */}
 
           {/* Aviso inventario (solo si hay marcados) */}
           {filas.some(f => f.guardarEnInventario) && (
             <div style={{ flex: 1, background: D.tealBg, border: `1px solid ${D.tealBdr}`,
-              borderRadius: 10, padding: '8px 14px', marginRight: 16,
+              borderRadius: 10, padding: '8px 14px', marginRight: isMobile ? 0 : 16,
               display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ color: D.teal, flexShrink: 0 }}>{Ico.info}</span>
               <span style={{ fontSize: 12, color: D.teal, lineHeight: 1.4 }}>
@@ -1541,6 +1560,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
 
 // ══════════════════════════════════════════════════════════
 function Historial({ esAdmin, onCargarEnNueva }) {
+  const { isMobile } = useBreakpoint();
   const [compras, setCompras]           = useState([]);
   const [totalReg, setTotalReg]         = useState(0);
   const [page, setPage]                 = useState(1);
@@ -1702,7 +1722,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
   };
 
   return (
-    <div style={{ padding: '28px 32px', width: '100%', boxSizing: 'border-box' }}>
+    <div style={{ padding: `clamp(16px, 3vw, 28px) ${isMobile ? 16 : 32}px`, width: '100%', boxSizing: 'border-box' }}>
 
       {/* Buscador + filtros */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 22, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1763,7 +1783,8 @@ function Historial({ esAdmin, onCargarEnNueva }) {
       {/* Tabla historial */}
       <div style={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16,
         overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 640 }}>
           <thead>
             <tr style={{ background: '#f9fafb' }}>
               {[
@@ -1838,6 +1859,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Paginación */}
@@ -1867,9 +1889,9 @@ function Historial({ esAdmin, onCargarEnNueva }) {
       {modalVer && compraSeleccionada && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 50, padding: 20, backdropFilter: 'blur(3px)', animation: 'fadeIn .15s' }}>
+          zIndex: 50, padding: 12, backdropFilter: 'blur(3px)', animation: 'fadeIn .15s' }}>
           <div style={{ background: '#ffffff', border: '1px solid #e5e7eb',
-            borderRadius: 20, padding: '32px 36px', width: '100%', maxWidth: 760,
+            borderRadius: 20, padding: 'clamp(16px, 4vw, 36px)', width: '100%', maxWidth: 760,
             maxHeight: '90vh', overflowY: 'auto',
             boxShadow: '0 20px 60px rgba(0,0,0,.18)', animation: 'slideUp .2s ease' }}>
 
@@ -1895,7 +1917,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
             </div>
 
             {/* Info grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14,
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 14,
               marginBottom: 24, padding: '18px 20px',
               background: '#f9fafb', borderRadius: 12, border: '1px solid #e5e7eb' }}>
               {[
@@ -1937,7 +1959,8 @@ function Historial({ esAdmin, onCargarEnNueva }) {
               </div>
             ) : (
               <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', marginBottom: 24 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 420 }}>
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
                       {['Descripción', 'Cant.', 'Costo unit.', 'IVA %', 'Subtotal'].map((h, i) => (
@@ -1963,6 +1986,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
@@ -2026,10 +2050,10 @@ function Historial({ esAdmin, onCargarEnNueva }) {
       {modalEditar && compraSeleccionada && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
             display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-            zIndex: 60, padding: '24px 20px', backdropFilter: 'blur(3px)',
+            zIndex: 60, padding: isMobile ? '12px' : '24px 20px', backdropFilter: 'blur(3px)',
             animation: 'fadeIn .15s', overflowY: 'auto' }}>
             <div style={{ background: '#ffffff', border: '1px solid #e5e7eb',
-              borderRadius: 20, padding: '32px 36px', width: '100%', maxWidth: 820,
+              borderRadius: 20, padding: 'clamp(16px, 4vw, 36px)', width: '100%', maxWidth: 820,
               boxShadow: '0 20px 60px rgba(0,0,0,.18)', animation: 'slideUp .2s ease',
               margin: 'auto' }}>
 
@@ -2055,7 +2079,7 @@ function Historial({ esAdmin, onCargarEnNueva }) {
               </div>
 
               {/* Campos cabecera */}
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr 1fr 1fr", gap: 14, marginBottom: 20 }}>
                 <Field label="Proveedor" required>
                   <input value={editProveedor} onChange={e => setEditProveedor(e.target.value)}
                     placeholder="Nombre del proveedor" style={inp} />
@@ -2081,6 +2105,8 @@ function Historial({ esAdmin, onCargarEnNueva }) {
 
               {/* Tabla de ítems editable */}
               <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                <div style={{ overflowX: 'auto' }}>
+                <div style={{ minWidth: 520 }}>
                 {/* Encabezado de columnas */}
                 <div style={{ display: 'grid',
                   gridTemplateColumns: '24px 1fr 80px 120px 70px 100px 34px',
@@ -2146,6 +2172,8 @@ function Historial({ esAdmin, onCargarEnNueva }) {
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                     {Ico.plus} Agregar producto
                   </button>
+                </div>
+                </div>
                 </div>
               </div>
 

@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const COLORES = ['#f59e0b', '#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#06b6d4'];
 
@@ -48,8 +49,8 @@ const Card = ({ children, style = {} }) => (
   </div>
 );
 
-const CardMetrica = ({ titulo, valor, subtexto, color, borderColor }) => (
-  <Card style={{ flex: 1, minWidth: 0, padding: '20px 22px', borderTop: `3px solid ${borderColor || color}` }}>
+const CardMetrica = ({ titulo, valor, subtexto, color, borderColor, minW = 0 }) => (
+  <Card style={{ flex: 1, minWidth: minW, padding: '20px 22px', borderTop: `3px solid ${borderColor || color}` }}>
     <div style={{ fontSize: 10, fontWeight: 700, color: C.textDim,
       letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 10 }}>
       {titulo}
@@ -94,6 +95,8 @@ const LabelDona = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
 
 export default function Dashboard() {
   const { usuario } = useAuth();
+  const { isMobile, isTablet, isSmall } = useBreakpoint();
+  const pad = isMobile ? 16 : isTablet ? 20 : 28;
   const [data, setData] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
@@ -128,8 +131,8 @@ export default function Dashboard() {
   );
 
   if (error) return (
-    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div style={{ background: C.card, borderRadius: 24, padding: '52px 44px', maxWidth: 440, width: '100%',
+    <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: C.card, borderRadius: 24, padding: 'clamp(24px, 5vw, 52px) clamp(16px, 4vw, 44px)', maxWidth: 440, width: '100%',
         textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', border: `1px solid ${C.border}` }}>
         {/* Icono SVG */}
         <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
@@ -205,7 +208,7 @@ export default function Dashboard() {
 
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80, display: 'flex', alignItems: 'center', gap: 16 }}>
+        padding: `0 ${pad}px`, height: 80, display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
         <div>
@@ -216,7 +219,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ padding: '28px 28px' }}>
+      <div style={{ padding: `${pad}px` }}>
 
       {/* Cards métricas */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -226,6 +229,7 @@ export default function Dashboard() {
           subtexto="en catálogo activo"
           color={C.amarillo}
           borderColor={C.amarillo}
+          minW={isSmall ? 'calc(50% - 8px)' : 0}
         />
         <CardMetrica
           titulo="Stock Bajo"
@@ -233,6 +237,7 @@ export default function Dashboard() {
           subtexto="bajo mínimo"
           color={C.rojo}
           borderColor={C.rojo}
+          minW={isSmall ? 'calc(50% - 8px)' : 0}
         />
         <CardMetrica
           titulo="Ventas Hoy"
@@ -240,6 +245,7 @@ export default function Dashboard() {
           subtexto={`en recibos emitidos`}
           color={C.verde}
           borderColor={C.verde}
+          minW={isSmall ? 'calc(50% - 8px)' : 0}
         />
         <CardMetrica
           titulo="Proformas"
@@ -247,13 +253,14 @@ export default function Dashboard() {
           subtexto="pendientes"
           color={C.morado}
           borderColor={C.morado}
+          minW={isSmall ? 'calc(50% - 8px)' : 0}
         />
       </div>
 
       {/* Fila gráficos superiores */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
 
-        <CardGrafico titulo="Compras vs Ventas del mes" flex={1}>
+        <CardGrafico titulo="Compras vs Ventas del mes" flex={1} style={{ minWidth: isSmall ? '100%' : 240 }}>
           {datosDona.length === 0 ? <SinDatos mensaje="Sin datos del mes aún" /> : (
             <ResponsiveContainer width="100%" height={210}>
               <PieChart>
@@ -276,7 +283,7 @@ export default function Dashboard() {
           )}
         </CardGrafico>
 
-        <CardGrafico titulo="Top 5 más vendidos" flex={2}>
+        <CardGrafico titulo="Top 5 más vendidos" flex={2} style={{ minWidth: isSmall ? '100%' : 300 }}>
           {datosBarras.length === 0 ? <SinDatos mensaje="Sin datos de ventas aún" /> : (
             <ResponsiveContainer width="100%" height={210}>
               <BarChart data={datosBarras} layout="vertical"
@@ -303,7 +310,7 @@ export default function Dashboard() {
       {/* Fila inferior */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
 
-        <CardGrafico titulo="Salidas últimos 30 días" flex={3}>
+        <CardGrafico titulo="Salidas últimos 30 días" flex={3} style={{ minWidth: isSmall ? '100%' : 300 }}>
           {datosLinea.length === 0 ? <SinDatos mensaje="Sin movimientos en los últimos 30 días" /> : (
             <ResponsiveContainer width="100%" height={210}>
               <LineChart data={datosLinea} margin={{ left: 0, right: 16, top: 8, bottom: 8 }}>
@@ -324,7 +331,7 @@ export default function Dashboard() {
         </CardGrafico>
 
         {/* Tabla alertas stock */}
-        <Card style={{ flex: 2, minWidth: 0, padding: '18px 20px', borderTop: `3px solid ${C.rojo}` }}>
+        <Card style={{ flex: 2, minWidth: isSmall ? '100%' : 280, padding: '18px 20px', borderTop: `3px solid ${C.rojo}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: C.rojo }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: C.rojo,
@@ -338,6 +345,7 @@ export default function Dashboard() {
               Sin alertas por ahora ✓
             </div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr>
@@ -373,6 +381,7 @@ export default function Dashboard() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </Card>
       </div>

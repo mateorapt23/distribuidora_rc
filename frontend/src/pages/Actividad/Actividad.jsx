@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff',
@@ -118,6 +119,7 @@ const BtnSecondary = ({ onClick, children, disabled }) => (
 
 // ── Componente principal ─────────────────────────────────────
 export default function Actividad() {
+  const { isMobile } = useBreakpoint();
   const [logs, setLogs]           = useState([]);
   const [total, setTotal]         = useState(0);
   const [cargando, setCargando]   = useState(true);
@@ -163,8 +165,10 @@ export default function Actividad() {
       <div style={{
         background: '#fff',
         borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80,
+        padding: isMobile ? '14px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 10,
       }}>
         {/* Izquierda: barra de color + título */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -187,7 +191,7 @@ export default function Actividad() {
       </div>
 
       {/* ── Cuerpo ── */}
-      <div style={{ padding: '24px 28px' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : '24px 28px' }}>
 
         {/* Filtros */}
         <div style={{
@@ -206,7 +210,7 @@ export default function Actividad() {
           <select
             value={filtros.usuario_id}
             onChange={e => handleFiltro('usuario_id', e.target.value)}
-            style={{ ...inputSt, minWidth: 160 }}
+            style={{ ...inputSt, minWidth: isMobile ? 120 : 160 }}
           >
             <option value="">Todos los usuarios</option>
             {usuarios.map(u => (
@@ -218,7 +222,7 @@ export default function Actividad() {
           <select
             value={filtros.modulo}
             onChange={e => handleFiltro('modulo', e.target.value)}
-            style={{ ...inputSt, minWidth: 150 }}
+            style={{ ...inputSt, minWidth: isMobile ? 110 : 150 }}
           >
             <option value="">Todos los módulos</option>
             {Object.entries(MODULOS).map(([k, v]) => (
@@ -351,7 +355,9 @@ export default function Actividad() {
           {/* Paginación */}
           {totalPages > 1 && (
             <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap', gap: 8,
               padding: '12px 18px', borderTop: `1px solid ${C.border}`,
               background: '#fafafa',
             }}>

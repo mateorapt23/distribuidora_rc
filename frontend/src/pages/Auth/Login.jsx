@@ -34,6 +34,7 @@ export default function Login() {
       justifyContent: 'center',
       background: '#0D111C',
       fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+      padding: '16px',
     }}>
 
       {/* Grid puntitos de fondo */}
@@ -44,10 +45,11 @@ export default function Login() {
         pointerEvents: 'none',
       }} />
 
-      {/* Card */}
+      {/* Card — ancho fijo en desktop, full-width en móvil */}
       <div style={{
         position: 'relative', zIndex: 1,
-        width: 380,
+        width: '100%',
+        maxWidth: 400,
         background: '#0b0f1a',
         border: '1px solid #1A2238',
         borderRadius: 16,
@@ -61,7 +63,7 @@ export default function Login() {
           background: 'linear-gradient(to right, #3b82f6, #F5C400, #10b981)',
         }} />
 
-        <div style={{ padding: '36px 32px 32px' }}>
+        <div style={{ padding: 'clamp(24px, 5vw, 36px) clamp(20px, 5vw, 32px) clamp(24px, 5vw, 32px)' }}>
 
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 32 }}>
@@ -88,7 +90,7 @@ export default function Login() {
 
           {/* Título */}
           <div style={{ marginBottom: 28 }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#E8EDF2' }}>
+            <div style={{ fontSize: 'clamp(17px, 4vw, 20px)', fontWeight: 700, color: '#E8EDF2' }}>
               Iniciar sesión
             </div>
             <div style={{ fontSize: 13, color: '#4a5568', marginTop: 4 }}>
@@ -129,10 +131,7 @@ export default function Login() {
                 Usuario
               </label>
               <div style={{ position: 'relative' }}>
-                <div style={{
-                  position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
-                  color: '#3D5070', display: 'flex', pointerEvents: 'none',
-                }}>
+                <div style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#3D5070', display: 'flex', pointerEvents: 'none' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                   </svg>
@@ -143,12 +142,14 @@ export default function Login() {
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
                   placeholder="tu usuario"
                   required
+                  autoComplete="username"
                   style={{
                     width: '100%', boxSizing: 'border-box',
                     background: '#141928', border: '1px solid #1A2238',
-                    borderRadius: 9, padding: '11px 13px 11px 40px',
-                    fontSize: 13, color: '#E8EDF2', outline: 'none',
+                    borderRadius: 9, padding: '12px 13px 12px 40px',
+                    fontSize: 14, color: '#E8EDF2', outline: 'none',
                     transition: 'border-color .2s',
+                    WebkitAppearance: 'none',
                   }}
                   onFocus={e => e.target.style.borderColor = '#F5C400'}
                   onBlur={e => e.target.style.borderColor = '#1A2238'}
@@ -159,21 +160,12 @@ export default function Login() {
             {/* Contraseña */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
-                <label style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: '#3D5070', letterSpacing: '1.1px',
-                  textTransform: 'uppercase',
-                }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#3D5070', letterSpacing: '1.1px', textTransform: 'uppercase' }}>
                   Contraseña
                 </label>
-                {/* Link recuperar contraseña */}
                 <Link
                   to="/recuperar-password"
-                  style={{
-                    fontSize: 11, color: '#F5C400', textDecoration: 'none',
-                    fontWeight: 600, letterSpacing: 0.2,
-                    transition: 'opacity .15s',
-                  }}
+                  style={{ fontSize: 11, color: '#F5C400', textDecoration: 'none', fontWeight: 600, letterSpacing: 0.2, transition: 'opacity .15s' }}
                   onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
                   onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                 >
@@ -181,10 +173,7 @@ export default function Login() {
                 </Link>
               </div>
               <div style={{ position: 'relative' }}>
-                <div style={{
-                  position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)',
-                  color: '#3D5070', display: 'flex', pointerEvents: 'none',
-                }}>
+                <div style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#3D5070', display: 'flex', pointerEvents: 'none' }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
@@ -195,12 +184,14 @@ export default function Login() {
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   placeholder="tu contraseña"
                   required
+                  autoComplete="current-password"
                   style={{
                     width: '100%', boxSizing: 'border-box',
                     background: '#141928', border: '1px solid #1A2238',
-                    borderRadius: 9, padding: '11px 40px 11px 40px',
-                    fontSize: 13, color: '#E8EDF2', outline: 'none',
+                    borderRadius: 9, padding: '12px 40px 12px 40px',
+                    fontSize: 14, color: '#E8EDF2', outline: 'none',
                     transition: 'border-color .2s',
+                    WebkitAppearance: 'none',
                   }}
                   onFocus={e => e.target.style.borderColor = '#F5C400'}
                   onBlur={e => e.target.style.borderColor = '#1A2238'}
@@ -208,11 +199,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPass(s => !s)}
-                  style={{
-                    position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: '#3D5070', display: 'flex', padding: 4,
-                  }}
+                  style={{ position: 'absolute', right: 11, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#3D5070', display: 'flex', padding: 4 }}
                 >
                   {showPass
                     ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -222,19 +209,20 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Botón */}
+            {/* Botón submit */}
             <button
               type="submit"
               disabled={cargando}
               style={{
                 marginTop: 6,
                 background: cargando ? '#a88a00' : 'linear-gradient(135deg, #F5C400, #e6a800)',
-                border: 'none', borderRadius: 9, padding: '12px',
-                fontSize: 13, fontWeight: 700, color: '#0D111C',
+                border: 'none', borderRadius: 9, padding: '13px',
+                fontSize: 14, fontWeight: 700, color: '#0D111C',
                 cursor: cargando ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 transition: 'opacity .2s',
                 boxShadow: '0 4px 18px rgba(245,196,0,0.22)',
+                WebkitTapHighlightColor: 'transparent',
               }}
               onMouseEnter={e => { if (!cargando) e.currentTarget.style.opacity = '0.88'; }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
@@ -269,6 +257,9 @@ export default function Login() {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         input::placeholder { color: #2a3550; }
+        @media (max-width: 400px) {
+          input { font-size: 16px !important; } /* evita zoom automático en iOS */
+        }
       `}</style>
     </div>
   );

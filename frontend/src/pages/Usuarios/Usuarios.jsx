@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', deep: '#f9fafb',
@@ -25,6 +26,7 @@ const VACIO = { nombre: '', username: '', password: '', rol: 'bodeguero', email:
 
 export default function Usuarios() {
   const { usuario: usuarioActual } = useAuth();
+  const { isMobile } = useBreakpoint();
 
   const [usuarios, setUsuarios]               = useState([]);
   const [cargando, setCargando]               = useState(true);
@@ -111,8 +113,10 @@ export default function Usuarios() {
 
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80,
-        display: 'flex', alignItems: 'center', gap: 16 }}>
+        padding: isMobile ? '14px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
+        display: 'flex', alignItems: 'center', gap: 16,
+        flexWrap: 'wrap' }}>
         <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
         <div style={{ flex: 1 }}>
@@ -132,11 +136,11 @@ export default function Usuarios() {
       </div>
 
       {/* Grid de cards */}
-      <div style={{ padding: '28px 28px' }}>
+      <div style={{ padding: isMobile ? '14px 12px' : '28px 28px' }}>
         {cargando ? (
           <div style={{ textAlign: 'center', color: C.textDim, padding: 60 }}>Cargando...</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? '260px' : '320px'}, 1fr))`, gap: 16 }}>
             {usuarios.map(u => (
               <div key={u.id} style={{
                 background: C.card,
@@ -239,10 +243,10 @@ export default function Usuarios() {
       {/* Modal crear / editar */}
       {modalAbierto && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: isMobile ? 12 : 16 }}>
           <div style={{ background: '#fff', border: `1px solid ${C.border}`,
-            borderRadius: 16, padding: 28, width: '100%', maxWidth: 440,
-            boxShadow: '0 24px 64px rgba(0,0,0,0.15)' }}>
+            borderRadius: 16, padding: isMobile ? 20 : 28, width: '100%', maxWidth: 440,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.15)', maxHeight: '90vh', overflowY: 'auto' }}>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h2 style={{ color: C.textPrimary, fontSize: 18, fontWeight: 700, margin: 0 }}>

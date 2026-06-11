@@ -384,14 +384,14 @@ function Contenedor({ children }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', background: S.bg,
-      fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
+      fontFamily: "'DM Sans', 'Segoe UI', sans-serif", padding: '16px' }}>
 
       {/* Grid puntitos de fondo */}
       <div style={{ position: 'fixed', inset: 0, zIndex: 0, opacity: 0.15,
         backgroundImage: 'radial-gradient(circle, #3D5070 1px, transparent 1px)',
         backgroundSize: '28px 28px', pointerEvents: 'none' }} />
 
-      <div style={{ position: 'relative', zIndex: 1, width: 400,
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 400,
         background: S.card, border: `1px solid ${S.border}`,
         borderRadius: 16, overflow: 'hidden',
         boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
@@ -399,7 +399,7 @@ function Contenedor({ children }) {
         {/* Barrita tricolor */}
         <div style={{ height: 3, background: 'linear-gradient(to right, #3b82f6, #F5C400, #10b981)' }} />
 
-        <div style={{ padding: '36px 32px 32px' }}>
+        <div style={{ padding: 'clamp(24px, 5vw, 36px) clamp(20px, 5vw, 32px) clamp(24px, 5vw, 32px)' }}>
           {children}
         </div>
       </div>
@@ -407,6 +407,7 @@ function Contenedor({ children }) {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         input::placeholder { color: #2a3550; }
+        @media (max-width: 400px) { input { font-size: 16px !important; } }
       `}</style>
     </div>
   );

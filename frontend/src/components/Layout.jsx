@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useBreakpoint } from '../hooks/useIsMobile';
 import api from '../api/config';
 
 const ICONS = {
@@ -61,7 +62,6 @@ const ROUTE_LABELS = {
   '/actividad':   'Actividad',
 };
 
-// Colores del sidebar oscuro
 const S = {
   bg:        '#0D111C',
   bgHover:   '#141928',
@@ -74,12 +74,12 @@ const S = {
   gold:      '#F5C400',
 };
 
-function NavItem({ item, open }) {
+function NavItem({ item, open, onNavigate }) {
   const iconSize = item.iconSize || 16;
   return (
     <NavLink
       to={item.to}
-      onClick={e => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); onNavigate && onNavigate(); }}
       style={({ isActive }) => ({
         display: 'flex', alignItems: 'center',
         gap: 10, margin: '1px 8px', height: 38,
@@ -130,13 +130,52 @@ function NavItem({ item, open }) {
   );
 }
 
+/* ── Icono hamburguesa / X ── */
+function HamburgerIcon({ open }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      {open
+        ? <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
+        : <><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></>
+      }
+    </svg>
+  );
+}
+
 export default function Layout({ children }) {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [open, setOpen] = useState(true);
+  const { isMobile, isTablet } = useBreakpoint();
 
-  // ── Toast stock bajo ───────────────────────────────────────────────────
+  // En desktop: sidebar colapsable. En móvil/tablet: overlay drawer.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Cerrar drawer al cambiar de ruta en móvil
+  useEffect(() => {
+    if (isMobile || isTablet) setDrawerOpen(false);
+  }, [location.pathname, isMobile, isTablet]);
+
+  // Cerrar drawer con ESC
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') setDrawerOpen(false); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Bloquear scroll del body cuando el drawer está abierto en móvil
+  useEffect(() => {
+    if ((isMobile || isTablet) && drawerOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [drawerOpen, isMobile, isTablet]);
+
+  // Toast stock bajo
   const [alertasStock, setAlertasStock]   = useState([]);
   const [toastVisible, setToastVisible]   = useState(false);
   const [toastOpaque,  setToastOpaque]    = useState(false);
@@ -161,7 +200,6 @@ export default function Layout({ children }) {
     setToastOpaque(false);
     setTimeout(() => setToastVisible(false), 380);
   };
-  // ──────────────────────────────────────────────────────────────────────
 
   const handleLogout = (e) => { e.stopPropagation(); logout(); navigate('/login'); };
 
@@ -169,181 +207,204 @@ export default function Layout({ children }) {
     ? usuario.nombre.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : 'U';
 
-  // Filtrar secciones y items según el rol del usuario
   const navSectionsVisibles = NAV_SECTIONS.map(section => ({
     ...section,
     items: section.items.filter(item => !item.roles || item.roles.includes(usuario?.rol)),
   })).filter(section => section.items.length > 0);
 
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb', position: 'relative' }}>
+  // En móvil/tablet: el sidebar siempre muestra texto (open=true) dentro del drawer
+  const isSmall = isMobile || isTablet;
+  const sidebarShowText = isSmall ? true : sidebarOpen;
+  const sidebarWidth = isSmall ? 260 : (sidebarOpen ? 232 : 56);
 
-      {/* ── Sidebar oscuro ── */}
-      <aside
-        onClick={() => setOpen(o => !o)}
-        style={{
-          position: 'fixed',
-          top: 0, left: 0,
-          height: '100vh',
-          width: open ? 232 : 56,
-          background: S.bg,
-          borderRight: `1px solid ${S.border}`,
-          display: 'flex', flexDirection: 'column',
-          zIndex: 100,
-          transition: 'width .28s cubic-bezier(.4,0,.2,1)',
-          cursor: 'pointer', userSelect: 'none',
-        }}
-      >
-        {/* Barrita horizontal multicolor en la parte superior */}
-        <div style={{
-          height: 3, flexShrink: 0,
-          background: 'linear-gradient(to right, #3b82f6, #F5C400, #10b981)',
-        }} />
+  /* ── Contenido del sidebar (compartido entre desktop y drawer) ── */
+  const SidebarContent = ({ onNavigate }) => (
+    <>
+      {/* Barrita tricolor */}
+      <div style={{ height: 3, flexShrink: 0, background: 'linear-gradient(to right, #3b82f6, #F5C400, #10b981)' }} />
 
-        {/* Logo */}
-        <div style={{
-          padding: '14px 12px 12px',
-          borderBottom: `1px solid ${S.border}`,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0,
-        }}>
+      {/* Logo */}
+      <div style={{
+        padding: '14px 12px 12px',
+        borderBottom: `1px solid ${S.border}`,
+        overflow: 'hidden',
+        display: 'flex', flexDirection: 'column', gap: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: sidebarShowText ? 'flex-start' : 'center' }}>
           <div style={{
-            display: 'flex', alignItems: 'center',
-            gap: 10,
-            justifyContent: open ? 'flex-start' : 'center',
+            width: 34, height: 34, flexShrink: 0,
+            background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+            borderRadius: 9,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 0 14px rgba(245,196,0,0.65), 0 0 28px rgba(245,196,0,0.28), 0 2px 6px rgba(0,0,0,0.35)',
           }}>
-            <div style={{
-              width: 34, height: 34, flexShrink: 0,
-              background: 'linear-gradient(135deg, #F5C400, #e6a800)',
-              borderRadius: 9,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 0 14px rgba(245,196,0,0.65), 0 0 28px rgba(245,196,0,0.28), 0 2px 6px rgba(0,0,0,0.35)',
-            }}>
-              <span style={{ fontSize: 17, fontWeight: 900, color: '#0D111C', lineHeight: 1, WebkitTextStroke: '0.1px #0D111C' }}>RC</span>
-            </div>
-
-            {open && (
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{
-                  fontSize: 10, fontWeight: 800, color: S.gold,
-                  letterSpacing: '2.8px', textTransform: 'uppercase',
-                  whiteSpace: 'nowrap', lineHeight: 1,
-                }}>
-                  Distribuidora
-                </div>
-                <div style={{
-                  fontSize: 13, fontWeight: 700, color: '#E8EDF2',
-                  letterSpacing: '.2px', whiteSpace: 'nowrap',
-                  marginTop: 3, lineHeight: 1.2,
-                }}>
-                  Rodríguez-Carrión
-                </div>
-              </div>
-            )}
+            <span style={{ fontSize: 17, fontWeight: 900, color: '#0D111C', lineHeight: 1, WebkitTextStroke: '0.1px #0D111C' }}>RC</span>
           </div>
-
-          <div style={{
-            fontSize: 8.5, color: S.label, fontWeight: 500,
-            letterSpacing: '1.1px', textTransform: 'uppercase',
-            whiteSpace: 'nowrap', marginTop: 8, paddingLeft: 2,
-            visibility: open ? 'visible' : 'hidden',
-          }}>
-            Materiales de Construcción
-          </div>
-        </div>
-
-        {/* Nav */}
-        <div style={{ flex: 1, padding: '10px 0', overflow: 'hidden' }}>
-          {navSectionsVisibles.map(section => (
-            <div key={section.label} style={{ marginBottom: 4 }}>
-              <div style={{
-                fontSize: 9, fontWeight: 700, color: S.label,
-                letterSpacing: '1.2px', textTransform: 'uppercase',
-                padding: '8px 16px 4px', whiteSpace: 'nowrap',
-                visibility: open ? 'visible' : 'hidden',
-              }}>
-                {section.label}
+          {sidebarShowText && (
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: S.gold, letterSpacing: '2.8px', textTransform: 'uppercase', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                Distribuidora
               </div>
-              {section.items.map(item => (
-                <NavItem key={item.to} item={item} open={open} />
-              ))}
-            </div>
-          ))}
-
-          <div style={{ height: 1, background: S.border, margin: '6px 14px' }} />
-
-          {usuario?.rol === 'admin' && (
-            <div>
-              <div style={{
-                fontSize: 9, fontWeight: 700, color: S.label,
-                letterSpacing: '1.2px', textTransform: 'uppercase',
-                padding: '8px 16px 4px', whiteSpace: 'nowrap',
-                visibility: open ? 'visible' : 'hidden',
-              }}>
-                {NAV_ADMIN.label}
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#E8EDF2', letterSpacing: '.2px', whiteSpace: 'nowrap', marginTop: 3, lineHeight: 1.2 }}>
+                Rodríguez-Carrión
               </div>
-              {NAV_ADMIN.items.map(item => (
-                <NavItem key={item.to} item={item} open={open} />
-              ))}
             </div>
           )}
         </div>
-
-        {/* Footer usuario */}
-        <div style={{ borderTop: `1px solid ${S.border}`, padding: '10px 8px' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 9,
-            padding: '7px 6px', borderRadius: 8, overflow: 'hidden',
-            justifyContent: open ? 'flex-start' : 'center',
-          }}>
-            <div style={{
-              width: 30, height: 30, flexShrink: 0,
-              background: 'linear-gradient(135deg, #F5C400, #e6a800)',
-              borderRadius: 8,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 11, fontWeight: 700, color: '#0D111C',
-              boxShadow: '0 0 12px rgba(245,196,0,0.60), 0 0 24px rgba(245,196,0,0.22), 0 2px 4px rgba(0,0,0,0.30)',
-            }}>
-              {initials}
-            </div>
-            {open && (
-              <>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#E8EDF2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {usuario?.nombre}
-                  </div>
-                  <div style={{ fontSize: 10, color: S.label, textTransform: 'uppercase', letterSpacing: '.5px' }}>
-                    {usuario?.rol}
-                  </div>
-                </div>
-                <div
-                  onClick={handleLogout}
-                  title="Cerrar sesión"
-                  style={{
-                    width: 26, height: 26, display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', borderRadius: 6, flexShrink: 0,
-                    color: S.label, cursor: 'pointer', transition: 'all .15s',
-                  }}
-                  onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.background = '#1f0a0a'; e.currentTarget.style.color = '#ef4444'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = S.label; }}
-                >
-                  <div style={{ width: 14, height: 14, display: 'flex' }}>{ICONS.logout}</div>
-                </div>
-              </>
-            )}
-          </div>
+        <div style={{
+          fontSize: 8.5, color: S.label, fontWeight: 500,
+          letterSpacing: '1.1px', textTransform: 'uppercase',
+          whiteSpace: 'nowrap', marginTop: 8, paddingLeft: 2,
+          visibility: sidebarShowText ? 'visible' : 'hidden',
+        }}>
+          Materiales de Construcción
         </div>
-      </aside>
+      </div>
 
-      {/* ── Contenido ── */}
+      {/* Nav */}
+      <div style={{ flex: 1, padding: '10px 0', overflowY: 'auto', overflowX: 'hidden' }}>
+        {navSectionsVisibles.map(section => (
+          <div key={section.label} style={{ marginBottom: 4 }}>
+            <div style={{
+              fontSize: 9, fontWeight: 700, color: S.label,
+              letterSpacing: '1.2px', textTransform: 'uppercase',
+              padding: '8px 16px 4px', whiteSpace: 'nowrap',
+              visibility: sidebarShowText ? 'visible' : 'hidden',
+            }}>
+              {section.label}
+            </div>
+            {section.items.map(item => (
+              <NavItem key={item.to} item={item} open={sidebarShowText} onNavigate={onNavigate} />
+            ))}
+          </div>
+        ))}
+
+        <div style={{ height: 1, background: S.border, margin: '6px 14px' }} />
+
+        {usuario?.rol === 'admin' && (
+          <div>
+            <div style={{
+              fontSize: 9, fontWeight: 700, color: S.label,
+              letterSpacing: '1.2px', textTransform: 'uppercase',
+              padding: '8px 16px 4px', whiteSpace: 'nowrap',
+              visibility: sidebarShowText ? 'visible' : 'hidden',
+            }}>
+              {NAV_ADMIN.label}
+            </div>
+            {NAV_ADMIN.items.map(item => (
+              <NavItem key={item.to} item={item} open={sidebarShowText} onNavigate={onNavigate} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer usuario */}
+      <div style={{ borderTop: `1px solid ${S.border}`, padding: '10px 8px' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 9,
+          padding: '7px 6px', borderRadius: 8, overflow: 'hidden',
+          justifyContent: sidebarShowText ? 'flex-start' : 'center',
+        }}>
+          <div style={{
+            width: 30, height: 30, flexShrink: 0,
+            background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+            borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 700, color: '#0D111C',
+            boxShadow: '0 0 12px rgba(245,196,0,0.60), 0 0 24px rgba(245,196,0,0.22), 0 2px 4px rgba(0,0,0,0.30)',
+          }}>
+            {initials}
+          </div>
+          {sidebarShowText && (
+            <>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#E8EDF2', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {usuario?.nombre}
+                </div>
+                <div style={{ fontSize: 10, color: S.label, textTransform: 'uppercase', letterSpacing: '.5px' }}>
+                  {usuario?.rol}
+                </div>
+              </div>
+              <div
+                onClick={handleLogout}
+                title="Cerrar sesión"
+                style={{
+                  width: 26, height: 26, display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', borderRadius: 6, flexShrink: 0,
+                  color: S.label, cursor: 'pointer', transition: 'all .15s',
+                }}
+                onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.background = '#1f0a0a'; e.currentTarget.style.color = '#ef4444'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = S.label; }}
+              >
+                <div style={{ width: 14, height: 14, display: 'flex' }}>{ICONS.logout}</div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb', position: 'relative' }}>
+
+      {/* ══ DESKTOP: sidebar fijo colapsable ══ */}
+      {!isSmall && (
+        <aside
+          onClick={() => setSidebarOpen(o => !o)}
+          style={{
+            position: 'fixed', top: 0, left: 0, height: '100vh',
+            width: sidebarWidth,
+            background: S.bg, borderRight: `1px solid ${S.border}`,
+            display: 'flex', flexDirection: 'column',
+            zIndex: 100,
+            transition: 'width .28s cubic-bezier(.4,0,.2,1)',
+            cursor: 'pointer', userSelect: 'none',
+          }}
+        >
+          <SidebarContent />
+        </aside>
+      )}
+
+      {/* ══ MÓVIL / TABLET: overlay drawer ══ */}
+      {isSmall && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setDrawerOpen(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 200,
+              background: 'rgba(0,0,0,0.55)',
+              opacity: drawerOpen ? 1 : 0,
+              pointerEvents: drawerOpen ? 'auto' : 'none',
+              transition: 'opacity .25s ease',
+            }}
+          />
+          {/* Drawer */}
+          <aside
+            style={{
+              position: 'fixed', top: 0, left: 0, height: '100vh',
+              width: sidebarWidth,
+              background: S.bg, borderRight: `1px solid ${S.border}`,
+              display: 'flex', flexDirection: 'column',
+              zIndex: 201,
+              transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform .28s cubic-bezier(.4,0,.2,1)',
+              userSelect: 'none',
+            }}
+          >
+            <SidebarContent onNavigate={() => setDrawerOpen(false)} />
+          </aside>
+        </>
+      )}
+
+      {/* ══ Contenido principal ══ */}
       <div style={{
-        marginLeft: open ? 232 : 56,
+        marginLeft: isSmall ? 0 : sidebarWidth,
         flex: 1,
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden', minWidth: 0,
-        transition: 'margin-left .28s cubic-bezier(.4,0,.2,1)',
+        transition: isSmall ? 'none' : 'margin-left .28s cubic-bezier(.4,0,.2,1)',
       }}>
 
         {/* Topbar */}
@@ -351,13 +412,55 @@ export default function Layout({ children }) {
           height: 50, background: '#fff',
           borderBottom: '1px solid #e8eaf0',
           display: 'flex', alignItems: 'center',
-          padding: '0 24px', gap: 6, flexShrink: 0,
+          padding: '0 16px', gap: 10, flexShrink: 0,
+          position: 'sticky', top: 0, zIndex: 50,
         }}>
-          <span style={{ fontSize: 12, color: '#9ba3b8' }}>Sistema</span>
-          <span style={{ fontSize: 12, color: '#d1d5db' }}>/</span>
-          <span style={{ fontSize: 12, color: '#374151', fontWeight: 500 }}>
+          {/* Botón hamburguesa (solo móvil/tablet) */}
+          {isSmall && (
+            <button
+              onClick={() => setDrawerOpen(o => !o)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#374151', padding: '4px', display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                borderRadius: 6, flexShrink: 0,
+              }}
+            >
+              <HamburgerIcon open={drawerOpen} />
+            </button>
+          )}
+
+          {/* Logo compacto en mobile */}
+          {isSmall && (
+            <div style={{
+              width: 26, height: 26, flexShrink: 0,
+              background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+              borderRadius: 7,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 0 10px rgba(245,196,0,0.5)',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 900, color: '#0D111C', lineHeight: 1 }}>RC</span>
+            </div>
+          )}
+
+          <span style={{ fontSize: 12, color: '#9ba3b8' }}>{isSmall ? '' : 'Sistema'}</span>
+          {!isSmall && <span style={{ fontSize: 12, color: '#d1d5db' }}>/</span>}
+          <span style={{ fontSize: 12, color: '#374151', fontWeight: 500, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {ROUTE_LABELS[location.pathname] || ''}
           </span>
+
+          {/* Avatar en mobile */}
+          {isSmall && (
+            <div style={{
+              width: 28, height: 28, flexShrink: 0,
+              background: 'linear-gradient(135deg, #F5C400, #e6a800)',
+              borderRadius: 7,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 700, color: '#0D111C',
+            }}>
+              {initials}
+            </div>
+          )}
         </div>
 
         {/* Página */}
@@ -371,8 +474,9 @@ export default function Layout({ children }) {
         <div style={{
           position: 'fixed',
           top: 8,
-          right: 20,
-          width: 310,
+          right: isMobile ? 8 : 20,
+          width: isMobile ? 'calc(100vw - 16px)' : 310,
+          maxWidth: 340,
           zIndex: 9999,
           background: '#ffffff',
           borderRadius: 12,
@@ -384,106 +488,44 @@ export default function Layout({ children }) {
           transition: 'opacity 0.35s ease, transform 0.35s ease',
           pointerEvents: toastOpaque ? 'auto' : 'none',
         }}>
-
-          {/* Cabecera */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '11px 12px 9px 14px',
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px 9px 14px' }}>
             <div style={{ color: '#ef4444', flexShrink: 0, display: 'flex' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
               </svg>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flex: 1 }}>
-              Stock bajo detectado
-            </span>
-            {/* Badge contador */}
-            <span style={{
-              background: '#FEE2E2', color: '#ef4444',
-              fontSize: 11, fontWeight: 700,
-              padding: '2px 8px', borderRadius: 20,
-            }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flex: 1 }}>Stock bajo detectado</span>
+            <span style={{ background: '#FEE2E2', color: '#ef4444', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
               {alertasStock.length} {alertasStock.length === 1 ? 'producto' : 'productos'}
             </span>
-            {/* Botón cerrar */}
-            <button
-              onClick={cerrarToast}
-              title="Cerrar"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: '#9ca3af', padding: '2px 2px 2px 6px',
-                display: 'flex', alignItems: 'center', borderRadius: 4,
-                transition: 'color .15s',
-              }}
+            <button onClick={cerrarToast} title="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 2px 2px 6px', display: 'flex', alignItems: 'center', borderRadius: 4, transition: 'color .15s' }}
               onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-              onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
+              onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-
-          {/* Separador */}
           <div style={{ height: 1, background: '#f3f4f6', margin: '0 14px' }} />
-
-          {/* Lista de productos */}
           <div style={{ padding: '8px 14px 12px' }}>
             {alertasStock.slice(0, 5).map((p, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '5px 0',
-                borderBottom: i < Math.min(alertasStock.length, 5) - 1
-                  ? '1px solid #f9fafb' : 'none',
-              }}>
-                <span style={{
-                  fontSize: 12.5, color: '#374151',
-                  overflow: 'hidden', textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap', maxWidth: 195,
-                }}>
-                  {p.descripcion}
-                </span>
-                <span style={{
-                  fontSize: 11.5, fontWeight: 700, color: '#ef4444',
-                  background: '#FFF5F5', padding: '2px 8px',
-                  borderRadius: 20, marginLeft: 8, flexShrink: 0,
-                }}>
-                  {p.stock} und.
-                </span>
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 0', borderBottom: i < Math.min(alertasStock.length, 5) - 1 ? '1px solid #f9fafb' : 'none' }}>
+                <span style={{ fontSize: 12.5, color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 195 }}>{p.descripcion}</span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#ef4444', background: '#FFF5F5', padding: '2px 8px', borderRadius: 20, marginLeft: 8, flexShrink: 0 }}>{p.stock} und.</span>
               </div>
             ))}
             {alertasStock.length > 5 && (
-              <div style={{ fontSize: 11.5, color: '#9ca3af', marginTop: 6, paddingTop: 4 }}>
-                +{alertasStock.length - 5} productos más con stock bajo
-              </div>
+              <div style={{ fontSize: 11.5, color: '#9ca3af', marginTop: 6, paddingTop: 4 }}>+{alertasStock.length - 5} productos más con stock bajo</div>
             )}
           </div>
-
-          {/* Barra de progreso auto-cierre */}
           <div style={{ height: 3, background: '#FEE2E2' }}>
-            <div style={{
-              height: '100%', background: '#ef4444',
-              animation: 'stockToastProgress 9s linear forwards',
-            }} />
+            <div style={{ height: '100%', background: '#ef4444', animation: 'stockToastProgress 9s linear forwards' }} />
           </div>
         </div>
       )}
 
-      {/* Keyframe para la barra de progreso */}
       <style>{`
-        @keyframes stockToastProgress {
-          from { width: 100%; }
-          to   { width: 0%; }
-        }
+        @keyframes stockToastProgress { from { width: 100%; } to { width: 0%; } }
       `}</style>
-
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { generarHTMLTermica, generarHTMLTabla } from './Tabla';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -23,6 +24,8 @@ const IcoTabla   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="n
 export default function Guardados({ onVerEnTabla }) {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'admin';
+  const { isMobile } = useBreakpoint();
+  const pad = isMobile ? 16 : 28;
 
   const [documentos, setDocumentos]           = useState([]);
   const [total, setTotal]                     = useState(0);
@@ -336,7 +339,7 @@ export default function Guardados({ onVerEnTabla }) {
   const totalPags = Math.ceil(total / LIMIT);
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div style={{ padding: `clamp(16px, 3vw, 20px) ${pad}px` }}>
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -381,7 +384,8 @@ export default function Guardados({ onVerEnTabla }) {
       {/* Tabla */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`,
         borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 640 }}>
           <thead>
             <tr style={{ background: '#f9fafb' }}>
               {['Número', 'Tipo', 'Cliente', 'Fecha', 'Total', 'Usuario', 'Acciones'].map(h => (
@@ -459,6 +463,7 @@ export default function Guardados({ onVerEnTabla }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Paginación */}
@@ -520,7 +525,8 @@ export default function Guardados({ onVerEnTabla }) {
 
           <div style={{ background: '#f9fafb', border: `1px solid ${C.border}`,
             borderRadius: 10, overflow: 'hidden', marginBottom: 16 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 400 }}>
               <thead>
                 <tr style={{ background: '#f3f4f6' }}>
                   {['Descripción', 'Cant.', 'Precio', 'Subtotal'].map(h => (
@@ -559,8 +565,8 @@ export default function Guardados({ onVerEnTabla }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
-
           <TotalesDoc filas={editFilas} />
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
             <BtnModal color="#8b5cf6" outline onClick={verEnTabla} icon={<IcoTabla />}>
@@ -766,8 +772,8 @@ const TotRow = ({ label, valor }) => (
 
 const Modal = ({ titulo, onClose, children, maxWidth = 600, badge }) => (
   <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16 }}>
-    <div style={{ background: '#fff', borderRadius: 18, padding: 28,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 12 }}>
+    <div style={{ background: '#fff', borderRadius: 18, padding: 'clamp(16px, 4vw, 28px)',
       width: '100%', maxWidth, maxHeight: '90vh', overflowY: 'auto',
       boxShadow: '0 24px 64px rgba(0,0,0,0.15)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between',
