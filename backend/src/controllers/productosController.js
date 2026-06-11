@@ -336,7 +336,7 @@ const buscarProductos = async (req, res) => {
     });
     params.push(parseInt(limit));
     const { rows } = await pool.query(
-      `SELECT id, codigo, descripcion, stock, iva, pvp1, pvp2
+      `SELECT id, codigo, descripcion, stock, inventariable, iva, pvp1, pvp2
        FROM productos
        WHERE activo = TRUE
          AND ${conds.join(' AND ')}

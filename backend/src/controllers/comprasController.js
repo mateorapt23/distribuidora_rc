@@ -158,7 +158,7 @@ const eliminar = async (req, res) => {
           'SELECT stock FROM productos WHERE id = $1 FOR UPDATE', [item.producto_id]
         );
         const stockAnterior = parseFloat(prod[0].stock);
-        const stockNuevo = stockAnterior - parseFloat(item.cantidad);
+        const stockNuevo = Math.max(0, stockAnterior - parseFloat(item.cantidad));
 
         await client.query(
           'UPDATE productos SET stock = $1 WHERE id = $2', [stockNuevo, item.producto_id]
@@ -217,7 +217,7 @@ const actualizar = async (req, res) => {
           'SELECT stock FROM productos WHERE id = $1 FOR UPDATE', [item.producto_id]
         );
         const stockAnterior = parseFloat(prod[0].stock);
-        const stockNuevo = stockAnterior - parseFloat(item.cantidad);
+        const stockNuevo = Math.max(0, stockAnterior - parseFloat(item.cantidad));
         await client.query(
           'UPDATE productos SET stock = $1 WHERE id = $2', [stockNuevo, item.producto_id]
         );

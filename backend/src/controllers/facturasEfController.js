@@ -199,7 +199,7 @@ const importar = [
 
               if (!yaTieneMovimientos && linea.cantidad > 0) {
                 const stockAnterior = parseFloat(pRes.rows[0].stock);
-                const stockNuevo    = stockAnterior - linea.cantidad;
+                const stockNuevo    = Math.max(0, stockAnterior - linea.cantidad);
 
                 await client.query(
                   'UPDATE productos SET stock = $1 WHERE id = $2',

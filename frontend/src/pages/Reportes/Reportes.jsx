@@ -27,14 +27,229 @@ export function generarMeses() {
   return meses;
 }
 
+// ── Iconos ──────────────────────────────────────────────────────────────────
 const IcoVentas      = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>;
 const IcoMovimientos = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
 const IcoProductos   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
 const IcoCalendar    = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+const IcoChevLeft    = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>;
+const IcoChevRight   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
+const IcoChevDown    = ({ open }) => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9"/></svg>;
 
-const MESES = generarMeses();
-const MES_ACTUAL = MESES[0].value;
+const MESES       = generarMeses();
+const MES_ACTUAL  = MESES[0].value;
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// ── MonthPicker ──────────────────────────────────────────────────────────────
+// Pill con flechas ← → para navegar mes a mes.
+// Al hacer clic en la etiqueta se abre un panel-calendario con rejilla de meses
+// y navegación de año. Los meses fuera del rango (13 meses) aparecen deshabilitados.
+const MonthPicker = ({ meses, value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const [panelYear, setPanelYear] = useState(() => value.split('|')[0].split('-')[0]);
+
+  const idx     = meses.findIndex(m => m.value === value);
+  const current = meses[idx];
+
+  // Navegación directa con las flechas del pill
+  const canBack    = idx < meses.length - 1;
+  const canForward = idx > 0;
+  const goBack     = () => { if (canBack)    onChange(meses[idx + 1].value); };
+  const goForward  = () => { if (canForward) onChange(meses[idx - 1].value); };
+
+  // Años disponibles en el array (como strings)
+  const availableYears = [...new Set(meses.map(m => m.value.split('|')[0].split('-')[0]))].sort();
+  const minYear = availableYears[0];
+  const maxYear = availableYears[availableYears.length - 1];
+
+  const canPrevYear = parseInt(panelYear) > parseInt(minYear);
+  const canNextYear = parseInt(panelYear) < parseInt(maxYear);
+
+  // Mapa monthIndex(0-based) → entrada de meses, para el año visible en el panel
+  const monthMap = {};
+  meses.forEach(m => {
+    const [desde] = m.value.split('|');
+    const [yr, mn] = desde.split('-');
+    if (yr === panelYear) monthMap[parseInt(mn) - 1] = m;
+  });
+
+  // Abre el panel sincronizando el año al mes seleccionado
+  const openPanel = () => {
+    setPanelYear(value.split('|')[0].split('-')[0]);
+    setOpen(o => !o);
+  };
+
+  // Estilo botones de navegación ← → del pill
+  const pillNavStyle = (enabled) => ({
+    width: 36, height: '100%', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none',
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    color: enabled ? C.textSec : C.textDim + '60',
+    transition: 'background .15s',
+  });
+
+  // Estilo botones ← → del navegador de año dentro del panel
+  const yearNavStyle = (enabled) => ({
+    width: 28, height: 28, flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: enabled ? C.bg : 'none',
+    border: `1px solid ${enabled ? C.border : 'transparent'}`,
+    borderRadius: 7,
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    color: enabled ? C.textSec : C.textDim + '50',
+    transition: 'background .15s',
+  });
+
+  return (
+    <div style={{ position: 'relative' }}>
+
+      {/* ── Pill ── */}
+      <div style={{
+        display: 'flex', alignItems: 'stretch', height: 40,
+        background: '#fff', border: `1px solid ${C.border}`,
+        borderRadius: 10, overflow: 'hidden',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}>
+
+        {/* ← mes anterior */}
+        <button
+          onClick={goBack} disabled={!canBack} title="Mes anterior"
+          style={pillNavStyle(canBack)}
+          onMouseEnter={e => { if (canBack)    e.currentTarget.style.background = C.bg; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+        >
+          <IcoChevLeft />
+        </button>
+
+        <div style={{ width: 1, background: C.border, flexShrink: 0 }} />
+
+        {/* Etiqueta — abre el panel */}
+        <button
+          onClick={openPanel}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '0 16px', height: '100%', flexGrow: 1,
+            background: open ? C.bg : 'none', border: 'none',
+            cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 13, fontWeight: 600, color: C.textPrimary,
+            transition: 'background .15s', minWidth: 172,
+            justifyContent: 'center',
+          }}
+        >
+          <span style={{ color: C.azul, display: 'flex', alignItems: 'center' }}><IcoCalendar /></span>
+          <span>{current?.label}</span>
+          <span style={{ color: C.textDim, display: 'flex', alignItems: 'center' }}><IcoChevDown open={open} /></span>
+        </button>
+
+        <div style={{ width: 1, background: C.border, flexShrink: 0 }} />
+
+        {/* → mes siguiente */}
+        <button
+          onClick={goForward} disabled={!canForward} title="Mes siguiente"
+          style={pillNavStyle(canForward)}
+          onMouseEnter={e => { if (canForward) e.currentTarget.style.background = C.bg; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+        >
+          <IcoChevRight />
+        </button>
+      </div>
+
+      {/* ── Panel calendario ── */}
+      {open && (
+        <>
+          {/* Overlay para cerrar al hacer clic fuera */}
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
+
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 100,
+            background: '#fff', border: `1px solid ${C.border}`, borderRadius: 14,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            padding: 16, width: 268,
+          }}>
+
+            {/* Navegador de año */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 14, paddingBottom: 12,
+              borderBottom: `1px solid ${C.border}`,
+            }}>
+              <button
+                onClick={() => { if (canPrevYear) setPanelYear(String(parseInt(panelYear) - 1)); }}
+                disabled={!canPrevYear}
+                style={yearNavStyle(canPrevYear)}
+                onMouseEnter={e => { if (canPrevYear) e.currentTarget.style.background = C.border; }}
+                onMouseLeave={e => { if (canPrevYear) e.currentTarget.style.background = C.bg; }}
+              >
+                <IcoChevLeft />
+              </button>
+
+              <span style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary, letterSpacing: .3 }}>
+                {panelYear}
+              </span>
+
+              <button
+                onClick={() => { if (canNextYear) setPanelYear(String(parseInt(panelYear) + 1)); }}
+                disabled={!canNextYear}
+                style={yearNavStyle(canNextYear)}
+                onMouseEnter={e => { if (canNextYear) e.currentTarget.style.background = C.border; }}
+                onMouseLeave={e => { if (canNextYear) e.currentTarget.style.background = C.bg; }}
+              >
+                <IcoChevRight />
+              </button>
+            </div>
+
+            {/* Rejilla de meses: 4 columnas × 3 filas */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {MONTH_NAMES.map((name, i) => {
+                const entry     = monthMap[i];
+                const available = !!entry;
+                const selected  = available && entry.value === value;
+
+                return (
+                  <button
+                    key={i}
+                    disabled={!available}
+                    onClick={() => { if (available) { onChange(entry.value); setOpen(false); } }}
+                    style={{
+                      padding: '9px 4px', textAlign: 'center',
+                      background: selected ? C.azul : 'none',
+                      color: selected ? '#fff' : available ? C.textSec : C.textDim + '45',
+                      border: `1px solid ${selected ? C.azul : available ? C.border : 'transparent'}`,
+                      borderRadius: 8,
+                      cursor: available ? 'pointer' : 'default',
+                      fontSize: 12, fontWeight: selected ? 600 : 400,
+                      fontFamily: 'inherit', transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => {
+                      if (available && !selected) {
+                        e.currentTarget.style.background = '#eff6ff';
+                        e.currentTarget.style.borderColor = C.azul;
+                        e.currentTarget.style.color = C.azul;
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (available && !selected) {
+                        e.currentTarget.style.background = 'none';
+                        e.currentTarget.style.borderColor = C.border;
+                        e.currentTarget.style.color = C.textSec;
+                      }
+                    }}
+                  >
+                    {name.slice(0, 3)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+// ── Reportes (componente principal) ─────────────────────────────────────────
 export default function Reportes() {
   const { usuario } = useAuth();
   const esAdmin = usuario?.rol === 'admin';
@@ -103,24 +318,11 @@ export default function Reportes() {
         </div>
 
         {/* Selector de mes */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7,
-            background: '#f9fafb', border: `1px solid ${C.border}`, borderRadius: 9,
-            padding: '0 14px', height: 38, color: C.textDim }}>
-            <IcoCalendar />
-            <select
-              value={mesSeleccionado}
-              onChange={e => setMesSeleccionado(e.target.value)}
-              style={{ border: 'none', background: 'transparent', fontSize: 13,
-                fontWeight: 600, color: C.textPrimary, outline: 'none',
-                cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              {MESES.map(m => (
-                <option key={m.value} value={m.value}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <MonthPicker
+          meses={MESES}
+          value={mesSeleccionado}
+          onChange={setMesSeleccionado}
+        />
       </div>
 
       {/* Tabs */}
