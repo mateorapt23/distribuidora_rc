@@ -713,35 +713,65 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
 
         {/* Header empresa */}
         <div style={{ display: 'flex', alignItems: 'stretch', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-          <div style={{ background: '#F5C400', flex: 1, padding: '14px 20px',
+          <div style={{
+            background: '#F5C400',
+            flex: 1,
+            padding: isMobile ? '12px 14px' : '14px 20px',
             display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16,
-            position: 'relative', overflow: 'hidden' }}>
+            position: 'relative', overflow: 'hidden',
+          }}>
             {/* Datos empresa */}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flexShrink: 0 }}>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#111', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            <div style={{
+              display: 'flex', flexDirection: 'column', justifyContent: 'center',
+              flexShrink: 0,
+              flex: isMobile ? 1 : undefined, // en mobile ocupa el espacio restante antes de la imagen
+              zIndex: 1,
+            }}>
+              <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 900, color: '#111', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 Ferreteria Carrión
               </div>
-              <div style={{ fontSize: 11, color: '#333', marginTop: 5, lineHeight: 1.8 }}>
+              <div style={{ fontSize: isMobile ? 9.5 : 11, color: '#333', marginTop: 5, lineHeight: 1.8 }}>
                 <strong>DIRECCIÓN:</strong> Chimbacalle, Av Napo y Salcedo<br/>
                 <strong>TELÉFONO:</strong> 0998024883 – 0984666022
               </div>
             </div>
-            {/* Foto del local — absoluta, no expande el header */}
-            <img
-              src="/LOCAL.jpg"
-              alt="Local Ferretería Carrión"
-              style={{
-                position: 'absolute',
-                left: '60%',
-                top: '50%',
-                transform: 'translate(-50%, -50%)',
-                height: 'calc(100% - 12px)',
-                width: 260,
-                objectFit: 'fill',
-                borderRadius: 6,
-                border: '2px solid rgba(0,0,0,0.15)',
-              }}
-            />
+
+            {/* Foto del local — dos modos según pantalla */}
+            {isMobile ? (
+              // Mobile: inline al lado del texto, tamaño pequeño y ordenado
+              <img
+                src="/LOCAL.jpg"
+                alt="Local Ferretería Carrión"
+                style={{
+                  height: 62,
+                  width: 92,
+                  objectFit: 'cover',
+                  borderRadius: 5,
+                  border: '2px solid rgba(0,0,0,0.18)',
+                  flexShrink: 0,
+                  alignSelf: 'center',
+                }}
+              />
+            ) : (
+              // Desktop/tablet: absoluta, centrada en left:60%
+              // min(260px, 25%): en 1080p (sección amarilla ~1400px) → 25% = 350px > 260 → usa 260px exacto
+              // En resoluciones menores → escala a 25% del contenedor sin moverse del 60%
+              <img
+                src="/LOCAL.jpg"
+                alt="Local Ferretería Carrión"
+                style={{
+                  position: 'absolute',
+                  left: '60%',
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  height: 'calc(100% - 12px)',
+                  width: 'min(260px, 25%)',
+                  objectFit: 'fill',
+                  borderRadius: 6,
+                  border: '2px solid rgba(0,0,0,0.15)',
+                }}
+              />
+            )}
           </div>
           <div data-capture-header-tipo="true" style={{
             background: '#0D111C',
