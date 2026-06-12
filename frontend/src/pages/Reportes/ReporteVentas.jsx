@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 import api from '../../api/config';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', deep: '#f9fafb',
@@ -79,7 +80,6 @@ const useSorting = (data, defaultCol) => {
   const sorted = [...data].sort((a, b) => {
     if (!sortCol) return 0;
     const va = a[sortCol]; const vb = b[sortCol];
-    // Comparación de fechas (ISO strings)
     const da = Date.parse(va); const db = Date.parse(vb);
     if (!isNaN(da) && !isNaN(db)) return sortDir === 'asc' ? da - db : db - da;
     const na = parseFloat(va); const nb = parseFloat(vb);
@@ -91,6 +91,7 @@ const useSorting = (data, defaultCol) => {
 
 // ════════════════════════════════════════════════════════════
 export default function ReporteVentas({ desde, hasta }) {
+  const { isSmall } = useBreakpoint();
   const [data, setData]         = useState(null);
   const [cargando, setCargando] = useState(false);
 
@@ -119,7 +120,6 @@ export default function ReporteVentas({ desde, hasta }) {
   });
   const datosGrafico = Object.values(datosDia).sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-  // Métricas adicionales
   const ventaMasAlta = filas.length > 0
     ? Math.max(...filas.map(d => parseFloat(d.total) || 0))
     : 0;
@@ -157,12 +157,14 @@ export default function ReporteVentas({ desde, hasta }) {
     <div style={{ padding: 60, textAlign: 'center', color: C.textDim }}>Cargando...</div>
   );
 
+  const pad = isSmall ? '14px 12px' : '24px 28px';
+
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div style={{ padding: pad }}>
 
       {/* Botones de exportación */}
       {filas.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
           <BtnExport onClick={exportarCSV}  color={C.verde}   label="CSV"   icon={<IcoExport />} />
           <BtnExport onClick={exportarExcel} color="#16a34a"  label="Excel" icon={<IcoXlsx />} />
           <BtnExport onClick={exportarPDF}   color={C.rojo}   label="PDF"   icon={<IcoPdf />} />
@@ -171,7 +173,7 @@ export default function ReporteVentas({ desde, hasta }) {
 
       {data && (
         <>
-          {/* Cards resumen */}
+          {/* Cards resumen — 2 columnas en móvil gracias a minWidth: 140 en CardMetrica */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             <CardMetrica titulo="Total recibos"    valor={data.resumen.cantidad}                                  color={C.azul} />
             <CardMetrica titulo="Total recaudado"  valor={`$${parseFloat(data.resumen.total).toFixed(2)}`}       color={C.verde} grande />
@@ -179,27 +181,27 @@ export default function ReporteVentas({ desde, hasta }) {
             <CardMetrica titulo="Días con ventas"  valor={diasConVentas}                                         color={C.morado} />
           </div>
 
-          {/* Gráfico */}
+          {/* Gráfico — ResponsiveContainer ya es responsive */}
           {datosGrafico.length > 0 && (
             <div style={{ background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 12, padding: 20, marginBottom: 24,
+              borderRadius: 12, padding: isSmall ? 14 : 20, marginBottom: 24,
               boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
               <div style={{ color: C.textDim, fontSize: 11, fontWeight: 700,
                 letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 16 }}>
                 Ventas por día
               </div>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={isSmall ? 180 : 220}>
                 <BarChart data={datosGrafico} margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
                   <CartesianGrid stroke={C.grid} strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="fecha" stroke={C.textDim} tick={{ fill: C.textDim, fontSize: 11 }}
+                  <XAxis dataKey="fecha" stroke={C.textDim} tick={{ fill: C.textDim, fontSize: isSmall ? 9 : 11 }}
                     axisLine={{ stroke: C.border }} tickLine={false} />
-                  <YAxis stroke={C.textDim} tick={{ fill: C.textDim, fontSize: 11 }}
+                  <YAxis stroke={C.textDim} tick={{ fill: C.textDim, fontSize: isSmall ? 9 : 11 }}
                     axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}
                     labelStyle={{ color: C.textDim, fontSize: 12 }}
                     formatter={(val) => [`$${parseFloat(val).toFixed(2)}`, 'Total']} />
-                  <Bar dataKey="total" radius={[4, 4, 0, 0]} barSize={20}>
+                  <Bar dataKey="total" radius={[4, 4, 0, 0]} barSize={isSmall ? 14 : 20}>
                     {datosGrafico.map((_, i) => <Cell key={i} fill={C.verde} />)}
                   </Bar>
                 </BarChart>
@@ -207,43 +209,45 @@ export default function ReporteVentas({ desde, hasta }) {
             </div>
           )}
 
-          {/* Tabla ordenable */}
+          {/* Tabla ordenable con scroll horizontal en móvil */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
             overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '16%' }} />  {/* Número */}
-                <col style={{ width: '28%' }} />  {/* Cliente */}
-                <col style={{ width: '22%' }} />  {/* Fecha */}
-                <col style={{ width: '18%' }} />  {/* Total */}
-                <col style={{ width: '16%' }} />  {/* Usuario */}
-              </colgroup>
-              <thead>
-                <tr style={{ background: C.deep }}>
-                  <Th label="Número"  col="numero"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Cliente" col="cliente" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Fecha"   col="fecha"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Total"   col="total"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Usuario" col="usuario" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.length === 0 ? (
-                  <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: C.textDim }}>
-                    Sin ventas en el período seleccionado
-                  </td></tr>
-                ) : sorted.map((d, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${C.grid}`,
-                    background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
-                    <td style={{ padding: '8px 14px', color: C.azul, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.numero}</td>
-                    <td style={{ padding: '8px 14px', color: C.textSec, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.cliente}</td>
-                    <td style={{ padding: '8px 14px', color: C.textDim, fontSize: 12, textAlign: 'center', whiteSpace: 'nowrap' }}>{d.fecha?.slice(0, 10)}</td>
-                    <td style={{ padding: '8px 14px', color: C.verde, fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>${parseFloat(d.total).toFixed(2)}</td>
-                    <td style={{ padding: '8px 14px', color: C.textDim, fontSize: 12, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.usuario || '—'}</td>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '16%' }} />  {/* Número */}
+                  <col style={{ width: '28%' }} />  {/* Cliente */}
+                  <col style={{ width: '22%' }} />  {/* Fecha */}
+                  <col style={{ width: '18%' }} />  {/* Total */}
+                  <col style={{ width: '16%' }} />  {/* Usuario */}
+                </colgroup>
+                <thead>
+                  <tr style={{ background: C.deep }}>
+                    <Th label="Número"  col="numero"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Cliente" col="cliente" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Fecha"   col="fecha"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Total"   col="total"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Usuario" col="usuario" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sorted.length === 0 ? (
+                    <tr><td colSpan={5} style={{ padding: 40, textAlign: 'center', color: C.textDim }}>
+                      Sin ventas en el período seleccionado
+                    </td></tr>
+                  ) : sorted.map((d, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.grid}`,
+                      background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
+                      <td style={{ padding: '8px 14px', color: C.azul, fontFamily: 'monospace', fontWeight: 700, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.numero}</td>
+                      <td style={{ padding: '8px 14px', color: C.textSec, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.cliente}</td>
+                      <td style={{ padding: '8px 14px', color: C.textDim, fontSize: 12, textAlign: 'center', whiteSpace: 'nowrap' }}>{d.fecha?.slice(0, 10)}</td>
+                      <td style={{ padding: '8px 14px', color: C.verde, fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>${parseFloat(d.total).toFixed(2)}</td>
+                      <td style={{ padding: '8px 14px', color: C.textDim, fontSize: 12, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.usuario || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}
@@ -270,12 +274,13 @@ const BtnExport = ({ onClick, color, label, icon }) => (
   </button>
 );
 
+// minWidth 140 (antes 160) → caben 2 por fila en pantallas de 320–375px
 const CardMetrica = ({ titulo, valor, color, grande }) => (
   <div style={{ background: '#fff', border: `1px solid #e5e7eb`, borderLeft: `4px solid ${color}`,
-    borderRadius: 12, padding: '18px 22px', flex: 1, minWidth: 160,
+    borderRadius: 12, padding: '18px 22px', flex: 1, minWidth: 140,
     boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
     <div style={{ color: '#9ca3af', fontSize: 10, fontWeight: 700, letterSpacing: 1.2,
       textTransform: 'uppercase', marginBottom: 8 }}>{titulo}</div>
-    <div style={{ fontSize: grande ? 30 : 24, fontWeight: 800, color }}>{valor}</div>
+    <div style={{ fontSize: grande ? 28 : 22, fontWeight: 800, color }}>{valor}</div>
   </div>
 );

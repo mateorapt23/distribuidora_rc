@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/config';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', deep: '#f9fafb',
@@ -127,17 +128,6 @@ const BadgeTipo = ({ tipo }) => {
   );
 };
 
-const CantidadCell = ({ cantidad, tipo }) => {
-  const n = parseFloat(cantidad);
-  const salida = ES_SALIDA(tipo);
-  return (
-    <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700,
-      color: salida ? C.rojo : C.verde, whiteSpace: 'nowrap', width: 90 }}>
-      {salida ? '−' : '+'}{Math.abs(n)}
-    </td>
-  );
-};
-
 // Th con sorting
 const Th = ({ label, col, sortCol, sortDir, onSort, align, width }) => {
   const active = sortCol === col;
@@ -176,6 +166,7 @@ const useSorting = (data) => {
 
 // ════════════════════════════════════════════════════════════
 export default function ReporteMovimientos({ desde, hasta }) {
+  const { isSmall } = useBreakpoint();
   const [tipo, setTipo]           = useState('');
   const [buscar, setBuscar]       = useState('');
   const [data, setData]           = useState([]);
@@ -227,7 +218,6 @@ export default function ReporteMovimientos({ desde, hasta }) {
   const mostrarNormales  = movsNormales.length > 0;
   const totalPags        = Math.ceil(total / LIMIT);
 
-  // Export
   const exportarExcel = () => {
     if (!movsFiltrados.length) return;
     const headers = ['Fecha', 'Producto', 'Código', 'Tipo', 'Cantidad', 'Stock Ant.', 'Stock Nuevo', 'Referencia', 'Usuario'];
@@ -254,17 +244,31 @@ export default function ReporteMovimientos({ desde, hasta }) {
     exportPDF(rows, headers, `Movimientos de Stock — ${desde} al ${hasta}`, `movimientos_${desde}_${hasta}.pdf`);
   };
 
-  return (
-    <div style={{ padding: '24px 28px' }}>
+  const pad = isSmall ? '14px 12px' : '24px 28px';
 
-      {/* Barra de controles */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+  return (
+    <div style={{ padding: pad }}>
+
+      {/* Barra de controles — apilables en móvil */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+
+        {/* Filtro tipo */}
         <select value={tipo} onChange={e => setTipo(e.target.value)}
-          style={{ ...inputSt, minWidth: 200 }}>
+          style={{
+            ...inputSt,
+            width: isSmall ? '100%' : 'auto',
+            minWidth: isSmall ? 0 : 200,
+          }}>
           {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
 
-        <div style={{ flex: 1, minWidth: 220, position: 'relative' }}>
+        {/* Buscador */}
+        <div style={{
+          width: isSmall ? '100%' : 'auto',
+          flex: isSmall ? 'none' : 1,
+          minWidth: isSmall ? 0 : 220,
+          position: 'relative',
+        }}>
           <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
             width: 14, height: 14, stroke: C.textDim, fill: 'none', strokeWidth: 2, strokeLinecap: 'round' }}
             viewBox="0 0 24 24">
@@ -275,16 +279,19 @@ export default function ReporteMovimientos({ desde, hasta }) {
             style={{ ...inputSt, width: '100%', paddingLeft: 34 }} />
         </div>
 
-        <span style={{ fontSize: 12, color: C.textDim, whiteSpace: 'nowrap' }}>
-          {total.toLocaleString()} movimiento{total !== 1 ? 's' : ''}
-        </span>
+        {/* Contador + botones en la misma fila */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', width: isSmall ? '100%' : 'auto' }}>
+          <span style={{ fontSize: 12, color: C.textDim, whiteSpace: 'nowrap' }}>
+            {total.toLocaleString()} movimiento{total !== 1 ? 's' : ''}
+          </span>
 
-        {movsFiltrados.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
-            <BtnExport onClick={exportarExcel} color="#16a34a" label="Excel" icon={<IcoXlsx />} />
-            <BtnExport onClick={exportarPDF}   color={C.rojo}  label="PDF"   icon={<IcoPdf />} />
-          </div>
-        )}
+          {movsFiltrados.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, marginLeft: isSmall ? 0 : 'auto' }}>
+              <BtnExport onClick={exportarExcel} color="#16a34a" label="Excel" icon={<IcoXlsx />} />
+              <BtnExport onClick={exportarPDF}   color={C.rojo}  label="PDF"   icon={<IcoPdf />} />
+            </div>
+          )}
+        </div>
       </div>
 
       {cargando && (
@@ -310,32 +317,41 @@ export default function ReporteMovimientos({ desde, hasta }) {
               boxShadow: abiertoEf ? '0 4px 16px rgba(139,92,246,0.08)' : 'none' }}>
 
               <div onClick={() => setExpandido(abiertoEf ? null : 'efacilito-bloque')}
-                style={{ padding: '14px 20px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 12,
+                style={{ padding: isSmall ? '12px 14px' : '14px 20px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: isSmall ? 8 : 12,
                   background: abiertoEf ? '#f5f3ff' : '#fff',
                   borderBottom: abiertoEf ? `1px solid ${C.border}` : 'none',
                   transition: 'background .15s' }}>
-                <div style={{ color: abiertoEf ? '#8b5cf6' : C.textDim }}><IcoChevron open={abiertoEf} /></div>
+                <div style={{ color: abiertoEf ? '#8b5cf6' : C.textDim, flexShrink: 0 }}>
+                  <IcoChevron open={abiertoEf} />
+                </div>
                 <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ede9fe',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b5cf6', flexShrink: 0 }}>
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: '#8b5cf6', flexShrink: 0 }}>
                   <IcoFolder />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: C.textPrimary, fontSize: 14 }}>Salidas por Facturas Efacilito</div>
-                  <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, display: 'flex', gap: 14 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: C.textPrimary, fontSize: isSmall ? 13 : 14 }}>
+                    Salidas por Facturas Efacilito
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                     <span style={{ color: '#8b5cf6', fontWeight: 600 }}>{gruposEfacilito.length} facturas</span>
                     <span style={{ color: C.rojo, fontWeight: 600 }}>{movsEfacilito.length} productos descontados</span>
                   </div>
                 </div>
-                <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20,
-                  padding: '3px 12px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                  {gruposEfacilito.length} facturas · {movsEfacilito.length} movimientos
-                </span>
+                {/* Badge: visible solo en desktop para no apretar el espacio */}
+                {!isSmall && (
+                  <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20,
+                    padding: '3px 12px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {gruposEfacilito.length} facturas · {movsEfacilito.length} movimientos
+                  </span>
+                )}
               </div>
 
               {abiertoEf && (
+                /* overflowX ya existe, añadimos minWidth a la tabla */
                 <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+                  <table style={{ width: '100%', minWidth: 580, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
                     <colgroup>
                       <col style={{ width: '20%' }} /> {/* Fecha */}
                       <col style={{ width: '15%' }} /> {/* Nro. Factura */}
@@ -412,8 +428,9 @@ export default function ReporteMovimientos({ desde, hasta }) {
 
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
             overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            {/* overflowX ya existía; añadimos minWidth a la tabla para forzar scroll en móvil */}
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+              <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: '14%' }} /> {/* Fecha */}
                   <col style={{ width: '20%' }} /> {/* Producto */}
@@ -479,7 +496,7 @@ export default function ReporteMovimientos({ desde, hasta }) {
 
       {/* Paginación */}
       {totalPags > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
           <BtnSm color={C.azul} onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Ant.</BtnSm>
           <span style={{ color: C.textDim, fontSize: 13 }}>Página {page} de {totalPags}</span>
           <BtnSm color={C.azul} onClick={() => setPage(p => Math.min(totalPags, p + 1))} disabled={page === totalPags}>Sig. →</BtnSm>
