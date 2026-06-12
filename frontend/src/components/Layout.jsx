@@ -346,15 +346,14 @@ export default function Layout({ children }) {
   );
 
   return (
-    <div className="rc-vh-min" style={{ display: 'flex', background: '#f4f5fb', position: 'relative' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f5fb', position: 'relative' }}>
 
       {/* ══ DESKTOP: sidebar fijo colapsable ══ */}
       {!isSmall && (
         <aside
-          className="rc-vh-fixed"
           onClick={() => setSidebarOpen(o => !o)}
           style={{
-            position: 'fixed', top: 0, left: 0,
+            position: 'fixed', top: 0, left: 0, height: '100vh',
             width: sidebarWidth,
             background: S.bg, borderRight: `1px solid ${S.border}`,
             display: 'flex', flexDirection: 'column',
@@ -383,9 +382,8 @@ export default function Layout({ children }) {
           />
           {/* Drawer */}
           <aside
-            className="rc-vh-fixed"
             style={{
-              position: 'fixed', top: 0, left: 0,
+              position: 'fixed', top: 0, left: 0, height: '100vh',
               width: sidebarWidth,
               background: S.bg, borderRight: `1px solid ${S.border}`,
               display: 'flex', flexDirection: 'column',
@@ -527,18 +525,6 @@ export default function Layout({ children }) {
 
       <style>{`
         @keyframes stockToastProgress { from { width: 100%; } to { width: 0%; } }
-
-        /* Altura visible real en móvil: 100vh no resta la barra de
-           direcciones del navegador, así que el sidebar/drawer (position:
-           fixed) quedaba más alto que la pantalla y el footer (usuario +
-           logout) se cortaba abajo. 100dvh sí se ajusta al viewport
-           visible real; se mantiene 100vh como respaldo. */
-        .rc-vh-fixed { height: 100vh; }
-        .rc-vh-min   { min-height: 100vh; }
-        @supports (height: 100dvh) {
-          .rc-vh-fixed { height: 100dvh; }
-          .rc-vh-min   { min-height: 100dvh; }
-        }
       `}</style>
     </div>
   );
