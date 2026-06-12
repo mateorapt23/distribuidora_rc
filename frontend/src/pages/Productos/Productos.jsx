@@ -126,7 +126,8 @@ export default function Productos() {
 
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: `0 ${pad}px`, height: 80,
+        padding: isMobile ? '14px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
         display: 'flex', alignItems: 'center', gap: 16 }}>
         <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
@@ -144,7 +145,7 @@ export default function Productos() {
 
         {/* Barra de acciones */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: isMobile ? 0 : 240, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 240, position: 'relative' }}>
             <svg style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
               width: 15, height: 15, stroke: C.textDim, fill: 'none', strokeWidth: 2, strokeLinecap: 'round' }}
               viewBox="0 0 24 24">
