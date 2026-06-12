@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 import api from '../../api/config';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', deep: '#f9fafb',
@@ -97,6 +98,8 @@ const BtnExport = ({ onClick, color, label, icon }) => (
 
 // ════════════════════════════════════════════════════════════
 export default function ReporteProductos({ desde, hasta }) {
+  const isMobile = useIsMobile();
+  const pad = isMobile ? '14px 12px' : '24px 28px';
   const [limit, setLimit]       = useState(20);
   const [data, setData]         = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -145,7 +148,7 @@ export default function ReporteProductos({ desde, hasta }) {
   );
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div style={{ padding: pad }}>
 
       {/* Controles superiores */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
@@ -184,7 +187,7 @@ export default function ReporteProductos({ desde, hasta }) {
                 margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
                 <XAxis type="number" stroke={C.textDim} tick={{ fill: C.textDim, fontSize: 11 }}
                   axisLine={{ stroke: C.border }} tickLine={false} />
-                <YAxis type="category" dataKey="nombre" width={140}
+                <YAxis type="category" dataKey="nombre" width={isMobile ? 100 : 140}
                   tick={{ fill: C.textSec, fontSize: 11 }} axisLine={false} tickLine={false} />
                 <CartesianGrid horizontal={false} stroke={C.grid} strokeDasharray="3 3" />
                 <Tooltip
@@ -202,8 +205,9 @@ export default function ReporteProductos({ desde, hasta }) {
 
           {/* Tabla ordenable */}
           <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
-            overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+            boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+            <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
               <colgroup>
                 <col style={{ width: '6%' }}  /> {/* # */}
                 <col style={{ width: '14%' }} /> {/* Código */}
@@ -246,6 +250,7 @@ export default function ReporteProductos({ desde, hasta }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </>
       )}

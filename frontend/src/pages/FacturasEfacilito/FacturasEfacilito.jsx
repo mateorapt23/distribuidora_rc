@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -75,6 +76,7 @@ const Modal = ({ titulo, onClose, children, maxWidth = 640 }) => (
 // ════════════════════════════════════════════════════════════
 export default function FacturasEfacilito() {
   const { usuario } = useAuth();
+  const isMobile = useIsMobile();
   const esAdmin = usuario?.rol === 'admin';
   const [seccion, setSeccion]     = useState('importar');
   const [refrescar, setRefrescar] = useState(0);
@@ -82,20 +84,27 @@ export default function FacturasEfacilito() {
   if (!esAdmin) return (
     <div style={{ background: C.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-        <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
+      <div style={{
+        background: '#fff', borderBottom: `1px solid ${C.border}`,
+        padding: isMobile ? '12px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
+        minHeight: isMobile ? 56 : 80,
+        display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0,
+      }}>
+        <div style={{ width: 4, height: isMobile ? 36 : 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>Facturas Efacilito</div>
-          <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
-            Importa y consulta el historial de facturas electrónicas
-          </div>
+          <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 700, color: C.textPrimary }}>Facturas Efacilito</div>
+          {!isMobile && (
+            <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
+              Importa y consulta el historial de facturas electrónicas
+            </div>
+          )}
         </div>
       </div>
       {/* Pantalla sin acceso */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ background: '#fff', borderRadius: 24, padding: '52px 44px', maxWidth: 440, width: '100%',
+        <div style={{ background: '#fff', borderRadius: 24, padding: isMobile ? '36px 20px' : '52px 44px', maxWidth: 440, width: '100%',
           textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.10)', border: `1px solid ${C.border}` }}>
           <div style={{ width: 80, height: 80, borderRadius: 20, background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
@@ -138,21 +147,31 @@ export default function FacturasEfacilito() {
     <div style={{ background: C.bg, minHeight: '100vh' }}>
 
       {/* Header */}
-      <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
+      <div style={{
+        background: '#fff', borderBottom: `1px solid ${C.border}`,
+        padding: isMobile ? '12px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
+        minHeight: isMobile ? 56 : 80,
+        display: 'flex', alignItems: 'center', gap: 16,
+      }}>
+        <div style={{ width: 4, height: isMobile ? 36 : 44, borderRadius: 2, flexShrink: 0,
           background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>Facturas Efacilito</div>
-          <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
-            Importa y consulta el historial de facturas electrónicas
-          </div>
+          <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 700, color: C.textPrimary }}>Facturas Efacilito</div>
+          {!isMobile && (
+            <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
+              Importa y consulta el historial de facturas electrónicas
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`,
-        background: '#fff', padding: '0 28px' }}>
+      <div style={{
+        display: 'flex', borderBottom: `1px solid ${C.border}`,
+        background: '#fff', padding: isMobile ? '0 12px' : '0 28px',
+        overflowX: 'auto',
+      }}>
         {[
           { key: 'importar',  label: 'Importar',  icon: <IcoUpload /> },
           { key: 'historial', label: 'Historial', icon: <IcoHistory /> },
@@ -183,6 +202,8 @@ export default function FacturasEfacilito() {
 // PANEL IMPORTAR
 // ════════════════════════════════════════════════════════════
 function PanelImportar({ onImportado }) {
+  const isMobile = useIsMobile();
+  const pad = isMobile ? '16px' : '28px';
   const [importando, setImportando]   = useState(false);
   const [archivoNombre, setArchivo]   = useState('');
   const [error, setError]             = useState('');
@@ -213,7 +234,7 @@ function PanelImportar({ onImportado }) {
   };
 
   return (
-    <div style={{ padding: '28px 28px' }}>
+    <div style={{ padding: pad }}>
 
       {error && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10,
@@ -282,7 +303,7 @@ function PanelImportar({ onImportado }) {
       {resultado && (
         <div style={{ marginTop: 20 }}>
           {/* KPIs resumen */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isMobile ? 2 : 3}, 1fr)`, gap: 12, marginBottom: 20 }}>
             {[
               { label: 'Facturas nuevas',      value: resultado.resumen.insertadas,      color: C.verde,    bg: '#d1fae5' },
               { label: 'Actualizadas',          value: resultado.resumen.actualizadas,    color: C.amarillo, bg: '#fef9c3' },
@@ -373,6 +394,8 @@ function PanelImportar({ onImportado }) {
 // y permite eliminar un lote completo
 // ════════════════════════════════════════════════════════════
 function PanelHistorial() {
+  const isMobile = useIsMobile();
+  const pad = isMobile ? '14px 12px' : '24px 28px';
   const [facturas, setFacturas]   = useState([]);
   const [cargando, setCargando]   = useState(false);
   const [error, setError]         = useState('');
@@ -450,7 +473,7 @@ function PanelHistorial() {
   const totalVentas = facturas.reduce((s, f) => s + parseFloat(f.total || 0), 0);
 
   return (
-    <div style={{ padding: '24px 28px' }}>
+    <div style={{ padding: pad }}>
 
       {error && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10,
@@ -497,7 +520,7 @@ function PanelHistorial() {
 
       {/* KPIs */}
       {facturas.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isMobile ? 2 : 4}, 1fr)`, gap: 12, marginBottom: 20 }}>
           {[
             { label: 'Importaciones',  value: lotes.length,                                           color: C.indigo,   bg: '#ede9fe' },
             { label: 'Total facturas', value: facturas.length,                                         color: C.azul,     bg: '#dbeafe' },
@@ -592,7 +615,7 @@ function PanelHistorial() {
                     <BtnSm color={C.rojo} outline
                       onClick={() => eliminarLote(lote.archivo, idsLote)}
                       icon={<IcoTrash />}>
-                      Eliminar importación
+                      {isMobile ? 'Eliminar' : 'Eliminar importación'}
                     </BtnSm>
                   </div>
                 </div>
@@ -701,8 +724,9 @@ function PanelHistorial() {
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.textDim,
                 textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Productos</div>
-              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <div style={{ border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
                       {['Cód.', 'Descripción', 'Precio', 'Cant.', 'Dto.', '%IVA', 'Importe'].map(h => (
@@ -728,6 +752,7 @@ function PanelHistorial() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}

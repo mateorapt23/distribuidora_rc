@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import Tabla from './Tabla';
 import Guardados from './Guardados';
 
@@ -29,6 +30,7 @@ const IcoGuardados = () => (
 );
 
 export default function Documentos() {
+  const isMobile = useIsMobile();
   const [seccion, setSeccion] = useState('tabla');
   const [refrescar, setRefrescar] = useState(0);
   const [datosEdicion, setDatosEdicion] = useState(null);
@@ -43,24 +45,42 @@ export default function Documentos() {
   return (
     <div style={{ background: C.bg, minHeight: '100vh' }}>
 
-      {/* Header */}
-      <div style={{ background: '#fff', borderBottom: `1px solid ${C.border}`,
-        padding: '0 28px', height: 80, display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ width: 4, height: 44, borderRadius: 2, flexShrink: 0,
-          background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)' }} />
+      {/* Header — height auto en móvil, 80px en desktop */}
+      <div style={{
+        background: '#fff',
+        borderBottom: `1px solid ${C.border}`,
+        padding: isMobile ? '12px 16px' : '0 28px',
+        height: isMobile ? 'auto' : 80,
+        minHeight: isMobile ? 56 : 80,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}>
+        <div style={{
+          width: 4, height: isMobile ? 36 : 44,
+          borderRadius: 2, flexShrink: 0,
+          background: 'linear-gradient(to bottom, #f59e0b, #3b82f6)',
+        }} />
         <div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary }}>
+          <div style={{ fontSize: isMobile ? 17 : 22, fontWeight: 700, color: C.textPrimary }}>
             Proformas / Notas de Entrega
           </div>
-          <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
-            Gestión de documentos de venta
-          </div>
+          {!isMobile && (
+            <div style={{ fontSize: 13, color: C.textDim, marginTop: 2 }}>
+              Gestión de documentos de venta
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`,
-        background: '#fff', padding: '0 28px' }}>
+      {/* Tabs — padding responsivo */}
+      <div style={{
+        display: 'flex',
+        borderBottom: `1px solid ${C.border}`,
+        background: '#fff',
+        padding: isMobile ? '0 12px' : '0 28px',
+        overflowX: 'auto',
+      }}>
         {[
           { key: 'tabla',     label: 'Nueva',     icon: <IcoNuevoDoc /> },
           { key: 'guardados', label: 'Guardados', icon: <IcoGuardados /> },
@@ -68,12 +88,14 @@ export default function Documentos() {
           <button key={tab.key} onClick={() => setSeccion(tab.key)}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '14px 20px', fontSize: 13, fontWeight: 600,
+              padding: isMobile ? '12px 16px' : '14px 20px',
+              fontSize: 13, fontWeight: 600,
               display: 'flex', alignItems: 'center', gap: 7,
               color: seccion === tab.key ? C.azul : C.textDim,
               borderBottom: seccion === tab.key
                 ? `2px solid ${C.azul}` : '2px solid transparent',
               transition: 'all 0.2s',
+              whiteSpace: 'nowrap',
             }}>
             {tab.icon}{tab.label}
           </button>
