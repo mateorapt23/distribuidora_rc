@@ -1,4 +1,5 @@
 const puppeteer = require('puppeteer-core');
+const { inyectarFuentes } = require('./pdfFonts');
 
 // Render define automáticamente la variable de entorno RENDER=true en producción.
 // En local (tu PC) esa variable no existe, así que usamos el Chrome instalado
@@ -37,7 +38,7 @@ const generarPDF = async (req, res) => {
     browser = await launchBrowser();
 
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(inyectarFuentes(html), { waitUntil: 'networkidle0' });
 
     const pdfOpciones = {
       printBackground: true,
@@ -88,7 +89,7 @@ const generarCaptura = async (req, res) => {
       '<body><div id="recibo-root" style="width:1160px;margin:0 auto;padding:10px;">'
     ).replace(/<\/body>/i, '</div></body>');
 
-    await page.setContent(htmlWrapped, { waitUntil: 'networkidle0' });
+    await page.setContent(inyectarFuentes(htmlWrapped), { waitUntil: 'networkidle0' });
 
     const clip = await page.evaluate(() => {
       const el = document.getElementById('recibo-root');
