@@ -1,6 +1,15 @@
 const puppeteer = require('puppeteer');
 
-// Detecta la ruta de Chrome según el SO, como fallback si puppeteer no trae Chromium
+// Flags recomendados para entornos con poca RAM compartida (Render free/standard)
+const LAUNCH_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage', // evita que Chromium use /dev/shm (muy chico en Render) y crashee al iniciar
+  '--disable-gpu',
+  '--single-process',        // reduce el consumo de memoria al no usar procesos separados
+];
+
+// Detecta la ruta de Chrome del sistema, como último fallback si nada más funciona
 const getChromePath = () => {
   if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
   const { platform } = process;
@@ -11,20 +20,32 @@ const getChromePath = () => {
   return '/usr/bin/google-chrome';
 };
 
-// Intenta con Chromium bundled de puppeteer; si falla, usa Chrome del sistema
+// 1) Intenta con el Chromium que puppeteer descargó (npx puppeteer browsers install chrome)
+// 2) Si falla, intenta indicando explícitamente la ruta que reporta puppeteer.executablePath()
+// 3) Si falla, intenta con un Chrome del sistema (CHROME_PATH o ruta por defecto del SO)
 const launchBrowser = async () => {
-  try {
-    return await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-  } catch {
-    return await puppeteer.launch({
-      executablePath: getChromePath(),
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+  const intentos = [
+    { label: 'chromium bundled (puppeteer.launch sin executablePath)', opciones: {} },
+    { label: 'chromium bundled (executablePath explícito)', opciones: { executablePath: puppeteer.executablePath() } },
+    { label: 'chrome del sistema', opciones: { executablePath: getChromePath() } },
+  ];
+
+  let ultimoError;
+  for (const intento of intentos) {
+    try {
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: LAUNCH_ARGS,
+        ...intento.opciones,
+      });
+      return browser;
+    } catch (err) {
+      ultimoError = err;
+      console.error(`⚠️  No se pudo lanzar el navegador con "${intento.label}":`, err.message);
+    }
   }
+
+  throw ultimoError;
 };
 
 const generarPDF = async (req, res) => {
