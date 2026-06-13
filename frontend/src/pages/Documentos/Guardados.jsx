@@ -52,7 +52,30 @@ export default function Guardados({ onVerEnTabla }) {
   const [pdfOpcion, setPdfOpcion]             = useState(1);
   const [pdfDocActual, setPdfDocActual]       = useState(null);
   const [pdfEsTermica, setPdfEsTermica]       = useState(false);
+  const [localImgBase64, setLocalImgBase64]   = useState(null);
   const LIMIT = 20;
+
+  // Cargar imagen del local como base64 comprimida para embeber en PDF (igual que en Tabla)
+  useEffect(() => {
+    fetch('/LOCAL.jpg')
+      .then(r => r.blob())
+      .then(blob => {
+        const img = new Image();
+        const url = URL.createObjectURL(blob);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          const MAX_W = 600;
+          const ratio = Math.min(1, MAX_W / img.width);
+          const canvas = document.createElement('canvas');
+          canvas.width  = Math.round(img.width  * ratio);
+          canvas.height = Math.round(img.height * ratio);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          setLocalImgBase64(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        img.src = url;
+      })
+      .catch(() => {});
+  }, []);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -258,7 +281,7 @@ export default function Guardados({ onVerEnTabla }) {
       notas: doc.notas || '', filas,
       subtotalBase, total: subtotalBase,
     };
-    return opcion === 1 ? generarHTML(params) : generarHTMLTabla(params);
+    return opcion === 1 ? generarHTML(params) : generarHTMLTabla({ ...params, imgLocal: localImgBase64 });
   };
 
   const abrirVistaPreviaPDF = async (doc, detalleImp, opcionInicial = 1) => {
@@ -381,7 +404,74 @@ export default function Guardados({ onVerEnTabla }) {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* Tabla / Lista */}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {cargando ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
+              padding: 48, textAlign: 'center', color: C.textDim }}>
+              Cargando...
+            </div>
+          ) : documentos.length === 0 ? (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14,
+              padding: 40, textAlign: 'center' }}>
+              <div style={{ color: C.textDim, fontSize: 14 }}>No hay documentos guardados</div>
+              <div style={{ color: C.textDim, fontSize: 12, marginTop: 6 }}>
+                Crea una proforma o nota de entrega desde la pestaña Nueva
+              </div>
+            </div>
+          ) : documentos.map(doc => (
+            <div key={doc.id} style={{ background: C.card, border: `1px solid ${C.border}`,
+              borderRadius: 14, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ fontFamily: 'monospace', fontWeight: 700, color: C.azul, fontSize: 15 }}>
+                  {doc.numero}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 20,
+                  whiteSpace: 'nowrap',
+                  background: doc.tipo === 'recibo' ? '#f0fdf4' : '#eff6ff',
+                  color: doc.tipo === 'recibo' ? C.verde : C.azul }}>
+                  {doc.tipo === 'recibo' ? 'Nota de entrega' : 'Proforma'}
+                </span>
+              </div>
+
+              <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: C.textPrimary }}>
+                {doc.cliente}
+              </div>
+
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between',
+                alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ fontSize: 12, color: C.textDim }}>
+                  {doc.fecha?.slice(0, 10)} · {doc.usuario_nombre || '—'}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 15, color: C.textPrimary }}>
+                  ${parseFloat(doc.total).toFixed(2)}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12,
+                borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>
+                <BtnSm color={C.azul} outline onClick={() => abrirDetalle(doc)} icon={<IcoEye />}>
+                  Ver
+                </BtnSm>
+                <BtnSm color={C.amarillo} outline onClick={() => abrirEditar(doc)} icon={<IcoEdit />}>
+                  Editar
+                </BtnSm>
+                {doc.tipo === 'proforma' && (
+                  <BtnSm color={C.verde} outline onClick={() => abrirConvertir(doc)} icon={<IcoConvert />}>
+                    Nota de entrega
+                  </BtnSm>
+                )}
+                {esAdmin && (
+                  <BtnSm color={C.rojo} outline onClick={() => eliminar(doc)} icon={<IcoTrash />}>
+                    Eliminar
+                  </BtnSm>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
       <div style={{ background: C.card, border: `1px solid ${C.border}`,
         borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         <div style={{ overflowX: 'auto' }}>
@@ -465,6 +555,7 @@ export default function Guardados({ onVerEnTabla }) {
         </table>
         </div>
       </div>
+      )}
 
       {/* Paginación */}
       {totalPags > 1 && (

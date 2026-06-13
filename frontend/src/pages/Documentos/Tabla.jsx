@@ -1167,26 +1167,22 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
             </span>
             <span style={{ fontSize: 10, color: C.textDim }}>clic para seleccionar</span>
           </div>
-          {/* Grid de 2 columnas */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+          {/* Grid responsive: 1 columna móvil, 2 columnas desktop */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
             {sugerencias.map((p, i) => (
               <div key={p.id}
                 onMouseDown={() => seleccionarProducto(filaActiva, p)}
                 style={{
                   padding: '8px 12px', cursor: 'pointer',
                   borderBottom: `1px solid ${C.border}`,
-                  borderRight: i % 2 === 0 ? `1px solid ${C.border}` : 'none',
+                  borderRight: !isMobile && i % 2 === 0 ? `1px solid ${C.border}` : 'none',
                   display: 'grid',
-                  gridTemplateColumns: '82px 1fr auto',
+                  gridTemplateColumns: '1fr auto',
                   gap: 8, alignItems: 'center',
                   transition: 'background .1s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
                 onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                <span style={{ color: C.textDim, fontSize: 10.5, fontFamily: 'monospace',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {p.codigo}
-                </span>
                 <span style={{ color: C.textSec, fontSize: 12.5,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {p.descripcion}
