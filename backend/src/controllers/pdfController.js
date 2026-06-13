@@ -1,16 +1,30 @@
 const puppeteer = require('puppeteer-core');
-const chromium  = require('@sparticuz/chromium');
 
-// Lanza Chromium usando el binario empaquetado por @sparticuz/chromium,
-// pensado para entornos restringidos como Render (no depende de cachés externas).
+// Render define automáticamente la variable de entorno RENDER=true en producción.
+// En local (tu PC) esa variable no existe, así que usamos el Chrome instalado
+// localmente (vía el paquete "puppeteer" completo, instalado como devDependency).
+const esRender = !!process.env.RENDER;
+
+// Lanza Chromium según el entorno:
+// - En Render: usa el binario empaquetado por @sparticuz/chromium (no depende de cachés externas).
+// - En local: usa el Chromium que descarga el paquete "puppeteer" completo.
 const launchBrowser = async () => {
-  return puppeteer.launch({
-    args: [
-      ...chromium.args,
-      '--disable-dev-shm-usage', // evita que Chromium use /dev/shm (muy pequeño en Render)
-    ],
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
+  const argsComunes = ['--disable-dev-shm-usage']; // evita que Chromium use /dev/shm (muy pequeño en Render)
+
+  if (esRender) {
+    const chromium = require('@sparticuz/chromium');
+    return puppeteer.launch({
+      args: [...chromium.args, ...argsComunes],
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
+  }
+
+  // Local: usamos el paquete "puppeteer" completo (devDependency) que trae su propio Chromium
+  const puppeteerFull = require('puppeteer');
+  return puppeteerFull.launch({
+    headless: 'new',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', ...argsComunes],
   });
 };
 
