@@ -1,51 +1,17 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
+const chromium  = require('@sparticuz/chromium');
 
-// Flags recomendados para entornos con poca RAM compartida (Render free/standard)
-const LAUNCH_ARGS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-dev-shm-usage', // evita que Chromium use /dev/shm (muy chico en Render) y crashee al iniciar
-  '--disable-gpu',
-  '--single-process',        // reduce el consumo de memoria al no usar procesos separados
-];
-
-// Detecta la ruta de Chrome del sistema, como último fallback si nada más funciona
-const getChromePath = () => {
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
-  const { platform } = process;
-  if (platform === 'win32')
-    return 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-  if (platform === 'darwin')
-    return '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  return '/usr/bin/google-chrome';
-};
-
-// 1) Intenta con el Chromium que puppeteer descargó (npx puppeteer browsers install chrome)
-// 2) Si falla, intenta indicando explícitamente la ruta que reporta puppeteer.executablePath()
-// 3) Si falla, intenta con un Chrome del sistema (CHROME_PATH o ruta por defecto del SO)
+// Lanza Chromium usando el binario empaquetado por @sparticuz/chromium,
+// pensado para entornos restringidos como Render (no depende de cachés externas).
 const launchBrowser = async () => {
-  const intentos = [
-    { label: 'chromium bundled (puppeteer.launch sin executablePath)', opciones: {} },
-    { label: 'chromium bundled (executablePath explícito)', opciones: { executablePath: puppeteer.executablePath() } },
-    { label: 'chrome del sistema', opciones: { executablePath: getChromePath() } },
-  ];
-
-  let ultimoError;
-  for (const intento of intentos) {
-    try {
-      const browser = await puppeteer.launch({
-        headless: 'new',
-        args: LAUNCH_ARGS,
-        ...intento.opciones,
-      });
-      return browser;
-    } catch (err) {
-      ultimoError = err;
-      console.error(`⚠️  No se pudo lanzar el navegador con "${intento.label}":`, err.message);
-    }
-  }
-
-  throw ultimoError;
+  return puppeteer.launch({
+    args: [
+      ...chromium.args,
+      '--disable-dev-shm-usage', // evita que Chromium use /dev/shm (muy pequeño en Render)
+    ],
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
+  });
 };
 
 const generarPDF = async (req, res) => {
