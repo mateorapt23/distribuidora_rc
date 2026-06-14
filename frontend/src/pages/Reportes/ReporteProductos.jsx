@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts';
 import api from '../../api/config';
-import { useIsMobile } from '../../hooks/useIsMobile';
+import { useBreakpoint } from '../../hooks/useIsMobile';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', deep: '#f9fafb',
@@ -96,10 +96,106 @@ const BtnExport = ({ onClick, color, label, icon }) => (
   </button>
 );
 
+// ══ COMPONENTES MÓVIL ════════════════════════════════════════
+
+const MobileSortBar = ({ sortCol, sortDir, onSort }) => {
+  const opts = [
+    { col: 'descripcion',      label: 'Producto' },
+    { col: 'cantidad_vendida', label: 'Cantidad' },
+    { col: 'total_vendido',    label: 'Total' },
+    { col: 'num_documentos',   label: 'Docs' },
+  ];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 10, color: C.textDim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 0 }}>
+        Ordenar:
+      </span>
+      {opts.map(o => {
+        const active = sortCol === o.col;
+        return (
+          <button key={o.col} onClick={() => onSort(o.col)} style={{
+            padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+            border: `1px solid ${active ? C.azul : C.border}`,
+            background: active ? '#eff6ff' : 'transparent',
+            color: active ? C.azul : C.textDim,
+            cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            {o.label}
+            {active && <span>{sortDir === 'asc' ? ' ↑' : ' ↓'}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
+const ProductoCard = ({ p, rank }) => {
+  const accentColor = COLORES[rank % COLORES.length];
+  const rankColor   = rank < 3 ? COLORES[rank] : C.textDim;
+  return (
+    <div style={{
+      background: '#fff',
+      border: `1px solid ${C.border}`,
+      borderLeft: `3px solid ${accentColor}`,
+      borderRadius: 10,
+      padding: '12px 14px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+    }}>
+      {/* Fila 1: Rank + Nombre + Código */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{
+          fontSize: 18, fontWeight: 800, color: rankColor,
+          lineHeight: 1, minWidth: 26, flexShrink: 0,
+        }}>
+          #{rank + 1}
+        </span>
+        <div style={{ overflow: 'hidden', flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, lineHeight: 1.35 }}>
+            {p.descripcion}
+          </div>
+          <div style={{ fontSize: 11, color: C.textDim, fontFamily: 'monospace', marginTop: 2 }}>
+            {p.codigo}
+          </div>
+        </div>
+      </div>
+
+      {/* Fila 2: Métricas */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        paddingTop: 8, borderTop: `1px solid ${C.grid}`, gap: 4,
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: C.textDim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Vendido</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: C.amarillo, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+            {parseFloat(p.cantidad_vendida)}
+          </div>
+        </div>
+        <div style={{ width: 1, height: 32, background: C.grid }} />
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: C.textDim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Total</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.verde, lineHeight: 1 }}>
+            ${parseFloat(p.total_vendido).toFixed(2)}
+          </div>
+        </div>
+        <div style={{ width: 1, height: 32, background: C.grid }} />
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: C.textDim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 }}>Docs</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.textSec, lineHeight: 1 }}>
+            {p.num_documentos}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ════════════════════════════════════════════════════════════
 export default function ReporteProductos({ desde, hasta }) {
-  const isMobile = useIsMobile();
-  const pad = isMobile ? '14px 12px' : '24px 28px';
+  const { isSmall } = useBreakpoint();
+  const pad = isSmall ? '14px 12px' : '24px 28px';
   const [limit, setLimit]       = useState(20);
   const [data, setData]         = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -187,7 +283,7 @@ export default function ReporteProductos({ desde, hasta }) {
                 margin={{ left: 8, right: 40, top: 4, bottom: 4 }}>
                 <XAxis type="number" stroke={C.textDim} tick={{ fill: C.textDim, fontSize: 11 }}
                   axisLine={{ stroke: C.border }} tickLine={false} />
-                <YAxis type="category" dataKey="nombre" width={isMobile ? 100 : 140}
+                <YAxis type="category" dataKey="nombre" width={isSmall ? 100 : 140}
                   tick={{ fill: C.textSec, fontSize: 11 }} axisLine={false} tickLine={false} />
                 <CartesianGrid horizontal={false} stroke={C.grid} strokeDasharray="3 3" />
                 <Tooltip
@@ -203,55 +299,68 @@ export default function ReporteProductos({ desde, hasta }) {
             </ResponsiveContainer>
           </div>
 
-          {/* Tabla ordenable */}
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-            <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-              <colgroup>
-                <col style={{ width: '6%' }}  /> {/* # */}
-                <col style={{ width: '14%' }} /> {/* Código */}
-                <col style={{ width: '36%' }} /> {/* Descripción */}
-                <col style={{ width: '15%' }} /> {/* Cant. vendida */}
-                <col style={{ width: '15%' }} /> {/* Total vendido */}
-                <col style={{ width: '14%' }} /> {/* Nº documentos */}
-              </colgroup>
-              <thead>
-                <tr style={{ background: C.deep }}>
-                  <Th label="#"             col={null}             sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Código"        col="codigo"           sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Descripción"   col="descripcion"      sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Cant. vendida" col="cantidad_vendida" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Total vendido" col="total_vendido"    sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  <Th label="Nº documentos" col="num_documentos"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                </tr>
-              </thead>
-              <tbody>
+          {/* Tabla / Cards */}
+          {isSmall ? (
+            /* ── MÓVIL: cards ── */
+            <div>
+              <MobileSortBar sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {sorted.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: `1px solid ${C.grid}`,
-                    background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      <span style={{ color: i < 3 ? COLORES[i] : C.textDim, fontWeight: 700 }}>{i + 1}</span>
-                    </td>
-                    <td style={{ padding: '8px 12px', color: C.textDim, fontFamily: 'monospace', fontSize: 12, textAlign: 'center' }}>
-                      {p.codigo}
-                    </td>
-                    <td style={{ padding: '8px 12px', color: C.textSec, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descripcion}</td>
-                    <td style={{ padding: '8px 12px', color: C.amarillo, fontWeight: 700, textAlign: 'center' }}>
-                      {parseFloat(p.cantidad_vendida)}
-                    </td>
-                    <td style={{ padding: '8px 12px', color: C.verde, fontWeight: 700, textAlign: 'center' }}>
-                      ${parseFloat(p.total_vendido).toFixed(2)}
-                    </td>
-                    <td style={{ padding: '8px 12px', color: C.textDim, textAlign: 'center' }}>
-                      {p.num_documentos}
-                    </td>
-                  </tr>
+                  <ProductoCard key={i} p={p} rank={i} />
                 ))}
-              </tbody>
-            </table>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* ── DESKTOP: tabla ── */
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', minWidth: 480, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: '6%' }}  />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '36%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '14%' }} />
+                </colgroup>
+                <thead>
+                  <tr style={{ background: C.deep }}>
+                    <Th label="#"             col={null}             sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Código"        col="codigo"           sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Descripción"   col="descripcion"      sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Cant. vendida" col="cantidad_vendida" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Total vendido" col="total_vendido"    sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    <Th label="Nº documentos" col="num_documentos"   sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((p, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.grid}`,
+                      background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
+                      <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                        <span style={{ color: i < 3 ? COLORES[i] : C.textDim, fontWeight: 700 }}>{i + 1}</span>
+                      </td>
+                      <td style={{ padding: '8px 12px', color: C.textDim, fontFamily: 'monospace', fontSize: 12, textAlign: 'center' }}>
+                        {p.codigo}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: C.textSec, textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descripcion}</td>
+                      <td style={{ padding: '8px 12px', color: C.amarillo, fontWeight: 700, textAlign: 'center' }}>
+                        {parseFloat(p.cantidad_vendida)}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: C.verde, fontWeight: 700, textAlign: 'center' }}>
+                        ${parseFloat(p.total_vendido).toFixed(2)}
+                      </td>
+                      <td style={{ padding: '8px 12px', color: C.textDim, textAlign: 'center' }}>
+                        {p.num_documentos}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            </div>
+          )}
         </>
       )}
 

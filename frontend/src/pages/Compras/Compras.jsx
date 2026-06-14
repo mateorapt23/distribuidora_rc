@@ -1015,7 +1015,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
 
           {/* Cabecera de columnas */}
           <div style={{ overflowX: 'auto' }}>
-          <div style={{ minWidth: 680 }}>
+          <div style={{ minWidth: importadoSRI ? 1100 : 860 }}>
           <TablaHeader
             modoXML={importadoSRI}
             todosM={filas.length > 0 && filas.every(f => f.guardarEnInventario)}
@@ -1027,7 +1027,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
           />
 
           {/* Filas de ítems */}
-          <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ padding: '8px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {filas.map((fila, idx) => (
               <ItemRow key={fila._id} fila={fila} idx={idx}
                 onCambioCodigo={onCambioCodigo}
@@ -1090,24 +1090,20 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
               </span>
               <span style={{ fontSize: 10, color: '#9ca3af' }}>clic para seleccionar</span>
             </div>
-            {/* Grid de 2 columnas */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+            {/* Grid de 2 columnas en desktop, 1 en móvil */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
               {sugerencias.map((p, i) => (
                 <div key={p.id} className="sugg-row"
                   onMouseDown={() => seleccionarProducto(filaActiva, p)}
                   style={{
                     padding: '7px 12px', cursor: 'pointer',
                     borderBottom: '1px solid #e5e7eb',
-                    borderRight: i % 2 === 0 ? '1px solid #e5e7eb' : 'none',
-                    display: 'grid', gridTemplateColumns: '80px 1fr auto',
+                    borderRight: !isMobile && i % 2 === 0 ? '1px solid #e5e7eb' : 'none',
+                    display: 'grid', gridTemplateColumns: '1fr auto',
                     gap: 7, alignItems: 'center', transition: 'background .1s',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
                   onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-                  <span style={{ color: '#9ca3af', fontSize: 10.5, fontFamily: 'monospace',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.codigo}
-                  </span>
                   <span style={{ color: '#111827', fontSize: 12,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {p.descripcion}
@@ -1130,34 +1126,40 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
           gap: isMobile ? 12 : 0, flexWrap: 'wrap' }}>
 
           {/* Totales row (Subtotal + IVA + Total) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 0,
-            flexWrap: 'wrap', flex: isMobile ? 'none' : undefined }}>
+          <div style={isMobile
+            ? { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', width: '100%' }
+            : { display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap' }}>
 
           {/* Subtotal */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
-            paddingRight: 28, borderRight: '1px solid #e5e7eb' }}>
+            paddingRight: isMobile ? 10 : 28,
+            borderRight: '1px solid #e5e7eb' }}>
             <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9ca3af',
               letterSpacing: .9, textTransform: 'uppercase' }}>Subtotal</span>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#374151' }}>
+            <span style={{ fontSize: isMobile ? 15 : 18, fontWeight: 700, color: '#374151' }}>
               ${subtotalBase.toFixed(2)}
             </span>
           </div>
 
           {/* IVA */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
-            paddingLeft: 28, paddingRight: 28, borderRight: '1px solid #e5e7eb' }}>
+            paddingLeft: isMobile ? 10 : 28,
+            paddingRight: isMobile ? 10 : 28,
+            borderRight: '1px solid #e5e7eb' }}>
             <span style={{ fontSize: 10.5, fontWeight: 700, color: '#9ca3af',
               letterSpacing: .9, textTransform: 'uppercase' }}>IVA</span>
-            <span style={{ fontSize: 18, fontWeight: 700, color: '#374151' }}>
+            <span style={{ fontSize: isMobile ? 15 : 18, fontWeight: 700, color: '#374151' }}>
               ${totalIva.toFixed(2)}
             </span>
           </div>
+
           {/* Total */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1,
-            paddingLeft: 28, paddingRight: 32 }}>
+            paddingLeft: isMobile ? 10 : 28,
+            paddingRight: isMobile ? 0 : 32 }}>
             <span style={{ fontSize: 10.5, fontWeight: 700, color: D.gold,
               letterSpacing: .9, textTransform: 'uppercase' }}>Total a pagar</span>
-            <span style={{ fontSize: 26, fontWeight: 800, color: D.gold, letterSpacing: -1 }}>
+            <span style={{ fontSize: isMobile ? 18 : 26, fontWeight: 800, color: D.gold, letterSpacing: -1 }}>
               ${total.toFixed(2)}
             </span>
           </div>
@@ -1217,7 +1219,7 @@ function TablaHeader({ modoXML, todosM, algunoM, toggleTodos }) {
     : ['#','Código','Descripción','Cant.','Costo unit.','IVA %','Subtotal',null,''];
   return (
     <div style={{ display: 'grid', gridTemplateColumns: cols,
-      gap: 8, padding: '10px 20px',
+      gap: 8, padding: '10px 8px',
       borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
       {headers.map((h, i) => {
         if (h === null) return (
@@ -1242,7 +1244,8 @@ function TablaHeader({ modoXML, todosM, algunoM, toggleTodos }) {
         return (
           <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af',
             letterSpacing: 1.1, textTransform: 'uppercase',
-            textAlign: i === 0 ? 'center' : i === 4 ? 'right' : (i === 3 || i === 5 || i === 6) ? 'center' : 'left' }}>
+            textAlign: i === 0 ? 'center' : i === 4 ? 'right' : (i === 3 || i === 5 || i === 6) ? 'center' : 'left',
+            paddingLeft: (i === 1 || i === 2) ? 10 : undefined }}>
             {h}
           </div>
         );

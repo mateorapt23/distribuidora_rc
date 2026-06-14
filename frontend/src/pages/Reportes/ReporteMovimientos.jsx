@@ -117,12 +117,15 @@ const BtnExport = ({ onClick, color, label, icon }) => (
   </button>
 );
 
-const BadgeTipo = ({ tipo }) => {
+const BadgeTipo = ({ tipo, small }) => {
   const color = COLORES_TIPO[tipo] || C.textDim;
   const label = TIPOS.find(t => t.value === tipo)?.label || tipo;
   return (
-    <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 4,
-      background: color + '18', color, whiteSpace: 'nowrap', display: 'inline-block' }}>
+    <span style={{
+      fontSize: small ? 10 : 11, fontWeight: 700,
+      padding: small ? '2px 7px' : '3px 9px', borderRadius: 4,
+      background: color + '18', color, whiteSpace: 'nowrap', display: 'inline-block',
+    }}>
       {label}
     </span>
   );
@@ -162,6 +165,165 @@ const useSorting = (data) => {
     return sortDir === 'asc' ? cmp : -cmp;
   });
   return { sorted, sortCol, sortDir, onSort };
+};
+
+// ══ COMPONENTES MÓVIL ════════════════════════════════════════
+
+// Muestra el flujo de stock: 100 → 107
+const StockFlow = ({ antes, despues }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 4,
+    background: C.bg, borderRadius: 6, padding: '3px 8px',
+  }}>
+    <span style={{ fontSize: 12, color: C.textDim }}>{antes}</span>
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.textDim} strokeWidth="2.5" strokeLinecap="round">
+      <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+    </svg>
+    <span style={{ fontSize: 12, fontWeight: 700, color: parseFloat(despues) < 0 ? C.rojo : C.textPrimary }}>
+      {despues}
+    </span>
+  </div>
+);
+
+// Card de movimiento normal (entrada, salida, ajuste)
+const MovCard = ({ m }) => {
+  const esSalida = ES_SALIDA(m.tipo);
+  const cantidad = Math.abs(parseFloat(m.cantidad));
+  const color = COLORES_TIPO[m.tipo] || C.textDim;
+
+  return (
+    <div style={{
+      background: '#fff',
+      border: `1px solid ${C.border}`,
+      borderLeft: `3px solid ${color}`,
+      borderRadius: 10,
+      padding: '12px 14px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+    }}>
+      {/* Fila 1: Fecha + Badge tipo */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: C.textDim, lineHeight: 1 }}>
+          {fmtFecha(m.creado_en)}
+        </span>
+        <BadgeTipo tipo={m.tipo} small />
+      </div>
+
+      {/* Fila 2: Nombre del producto + código */}
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, lineHeight: 1.35 }}>
+          {m.descripcion}
+        </div>
+        <div style={{ fontSize: 11, color: C.textDim, fontFamily: 'monospace', marginTop: 2 }}>
+          {m.codigo}
+        </div>
+      </div>
+
+      {/* Fila 3: Cantidad, stock anterior→nuevo, usuario */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        paddingTop: 8, borderTop: `1px solid ${C.grid}`, gap: 8, flexWrap: 'wrap',
+      }}>
+        <span style={{
+          fontSize: 22, fontWeight: 800,
+          color: esSalida ? C.rojo : C.verde,
+          lineHeight: 1, fontVariantNumeric: 'tabular-nums',
+        }}>
+          {esSalida ? '−' : '+'}{cantidad}
+        </span>
+        <StockFlow antes={parseFloat(m.stock_anterior)} despues={parseFloat(m.stock_nuevo)} />
+        {m.usuario_nombre && (
+          <span style={{
+            fontSize: 11, color: C.textDim,
+            overflow: 'hidden', textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap', maxWidth: 90,
+          }}>
+            {m.usuario_nombre}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Card de movimiento Efacilito
+const EfacilitoMovCard = ({ m, referencia_id }) => {
+  const cantidad = Math.abs(parseFloat(m.cantidad));
+  return (
+    <div style={{
+      background: '#fdfcff',
+      border: `1px solid #e9d5ff`,
+      borderLeft: `3px solid #8b5cf6`,
+      borderRadius: 10,
+      padding: '11px 13px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+    }}>
+      {/* Fecha + # Factura */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 11, color: C.textDim }}>{fmtFecha(m.creado_en)}</span>
+        <span style={{ color: '#8b5cf6', fontWeight: 700, fontFamily: 'monospace', fontSize: 12 }}>
+          #{referencia_id}
+        </span>
+      </div>
+
+      {/* Producto */}
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, lineHeight: 1.35 }}>
+          {m.descripcion}
+        </div>
+        <div style={{ fontSize: 11, color: C.textDim, fontFamily: 'monospace', marginTop: 2 }}>
+          {m.codigo}
+        </div>
+      </div>
+
+      {/* Cantidad + stock */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        paddingTop: 8, borderTop: `1px solid #f3e8ff`, gap: 8, flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: 22, fontWeight: 800, color: C.rojo, lineHeight: 1 }}>
+          −{cantidad}
+        </span>
+        <StockFlow antes={parseFloat(m.stock_anterior)} despues={parseFloat(m.stock_nuevo)} />
+      </div>
+    </div>
+  );
+};
+
+// Barra de ordenamiento para móvil (reemplaza los headers de columna)
+const MobileSortBar = ({ sortCol, sortDir, onSort }) => {
+  const opts = [
+    { col: 'creado_en',  label: 'Fecha' },
+    { col: 'descripcion', label: 'Producto' },
+    { col: 'tipo',       label: 'Tipo' },
+    { col: 'cantidad',   label: 'Cantidad' },
+  ];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 10, color: C.textDim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.8, flexShrink: 0 }}>
+        Ordenar:
+      </span>
+      {opts.map(o => {
+        const active = sortCol === o.col;
+        return (
+          <button key={o.col} onClick={() => onSort(o.col)} style={{
+            padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+            border: `1px solid ${active ? C.azul : C.border}`,
+            background: active ? '#eff6ff' : 'transparent',
+            color: active ? C.azul : C.textDim,
+            cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            {o.label}
+            {active && <span>{sortDir === 'asc' ? ' ↑' : ' ↓'}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
 };
 
 // ════════════════════════════════════════════════════════════
@@ -249,29 +411,24 @@ export default function ReporteMovimientos({ desde, hasta }) {
   return (
     <div style={{ padding: pad }}>
 
-      {/* Barra de controles — apilables en móvil */}
+      {/* ── Barra de controles ── */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
 
         {/* Filtro tipo */}
         <select value={tipo} onChange={e => setTipo(e.target.value)}
-          style={{
-            ...inputSt,
-            width: isSmall ? '100%' : 'auto',
-            minWidth: isSmall ? 0 : 200,
-          }}>
+          style={{ ...inputSt, width: isSmall ? '100%' : 'auto', minWidth: isSmall ? 0 : 200 }}>
           {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
 
         {/* Buscador */}
         <div style={{
-          width: isSmall ? '100%' : 'auto',
-          flex: isSmall ? 'none' : 1,
-          minWidth: isSmall ? 0 : 220,
-          position: 'relative',
+          width: isSmall ? '100%' : 'auto', flex: isSmall ? 'none' : 1,
+          minWidth: isSmall ? 0 : 220, position: 'relative',
         }}>
-          <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-            width: 14, height: 14, stroke: C.textDim, fill: 'none', strokeWidth: 2, strokeLinecap: 'round' }}
-            viewBox="0 0 24 24">
+          <svg style={{
+            position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
+            width: 14, height: 14, stroke: C.textDim, fill: 'none', strokeWidth: 2, strokeLinecap: 'round',
+          }} viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
           </svg>
           <input type="text" placeholder="Buscar por producto o código..."
@@ -279,12 +436,11 @@ export default function ReporteMovimientos({ desde, hasta }) {
             style={{ ...inputSt, width: '100%', paddingLeft: 34 }} />
         </div>
 
-        {/* Contador + botones en la misma fila */}
+        {/* Contador + botones exportar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', width: isSmall ? '100%' : 'auto' }}>
           <span style={{ fontSize: 12, color: C.textDim, whiteSpace: 'nowrap' }}>
             {total.toLocaleString()} movimiento{total !== 1 ? 's' : ''}
           </span>
-
           {movsFiltrados.length > 0 && (
             <div style={{ display: 'flex', gap: 8, marginLeft: isSmall ? 0 : 'auto' }}>
               <BtnExport onClick={exportarExcel} color="#16a34a" label="Excel" icon={<IcoXlsx />} />
@@ -312,22 +468,28 @@ export default function ReporteMovimientos({ desde, hasta }) {
               </div>
             )}
 
-            <div style={{ border: `1px solid ${abiertoEf ? '#c4b5fd' : C.border}`,
+            <div style={{
+              border: `1px solid ${abiertoEf ? '#c4b5fd' : C.border}`,
               borderRadius: 12, overflow: 'hidden',
-              boxShadow: abiertoEf ? '0 4px 16px rgba(139,92,246,0.08)' : 'none' }}>
-
+              boxShadow: abiertoEf ? '0 4px 16px rgba(139,92,246,0.08)' : 'none',
+            }}>
+              {/* Header colapsable */}
               <div onClick={() => setExpandido(abiertoEf ? null : 'efacilito-bloque')}
-                style={{ padding: isSmall ? '12px 14px' : '14px 20px', cursor: 'pointer',
+                style={{
+                  padding: isSmall ? '12px 14px' : '14px 20px', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', gap: isSmall ? 8 : 12,
                   background: abiertoEf ? '#f5f3ff' : '#fff',
                   borderBottom: abiertoEf ? `1px solid ${C.border}` : 'none',
-                  transition: 'background .15s' }}>
+                  transition: 'background .15s',
+                }}>
                 <div style={{ color: abiertoEf ? '#8b5cf6' : C.textDim, flexShrink: 0 }}>
                   <IcoChevron open={abiertoEf} />
                 </div>
-                <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ede9fe',
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, background: '#ede9fe',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#8b5cf6', flexShrink: 0 }}>
+                  color: '#8b5cf6', flexShrink: 0,
+                }}>
                   <IcoFolder />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -339,73 +501,84 @@ export default function ReporteMovimientos({ desde, hasta }) {
                     <span style={{ color: C.rojo, fontWeight: 600 }}>{movsEfacilito.length} productos descontados</span>
                   </div>
                 </div>
-                {/* Badge: visible solo en desktop para no apretar el espacio */}
                 {!isSmall && (
-                  <span style={{ background: '#ede9fe', color: '#7c3aed', borderRadius: 20,
-                    padding: '3px 12px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  <span style={{
+                    background: '#ede9fe', color: '#7c3aed', borderRadius: 20,
+                    padding: '3px 12px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+                  }}>
                     {gruposEfacilito.length} facturas · {movsEfacilito.length} movimientos
                   </span>
                 )}
               </div>
 
               {abiertoEf && (
-                /* overflowX ya existe, añadimos minWidth a la tabla */
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 580, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: '20%' }} /> {/* Fecha */}
-                      <col style={{ width: '15%' }} /> {/* Nro. Factura */}
-                      <col style={{ width: '30%' }} /> {/* Producto */}
-                      <col style={{ width: '12%' }} /> {/* Cantidad */}
-                      <col style={{ width: '12%' }} /> {/* Stock ant. */}
-                      <col style={{ width: '11%' }} /> {/* Stock nuevo */}
-                    </colgroup>
-                    <thead>
-                      <tr style={{ background: C.deep }}>
-                        <Th label="Fecha"        col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                        <Th label="Nro. Factura" col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                        <Th label="Producto"     col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                        <Th label="Cantidad"     col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                        <Th label="Stock ant."   col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                        <Th label="Stock nuevo"  col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gruposEfacilito.flatMap(grupo =>
-                        grupo.movimientos.map((m, i) => (
-                          <tr key={m.id} style={{ borderBottom: `1px solid ${C.grid}`,
-                            background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
-                            <td style={{ padding: '8px 10px', color: C.textDim, fontSize: 12, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              {fmtFecha(m.creado_en)}
-                            </td>
-                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                              <span style={{ color: '#8b5cf6', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
-                                #{grupo.referencia_id}
-                              </span>
-                            </td>
-                            <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                              <div style={{ color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {m.descripcion}
-                              </div>
-                              <div style={{ color: C.textDim, fontSize: 11, fontFamily: 'monospace' }}>{m.codigo}</div>
-                            </td>
-                            <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: C.rojo, whiteSpace: 'nowrap' }}>
-                              −{Math.abs(parseFloat(m.cantidad))}
-                            </td>
-                            <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim }}>
-                              {parseFloat(m.stock_anterior)}
-                            </td>
-                            <td style={{ padding: '8px 10px', textAlign: 'center',
-                              color: parseFloat(m.stock_nuevo) < 0 ? C.rojo : C.textSec,
-                              fontWeight: 600 }}>
-                              {parseFloat(m.stock_nuevo)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                isSmall ? (
+                  /* ── MÓVIL: cards Efacilito ── */
+                  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: 8, background: '#faf7ff' }}>
+                    {gruposEfacilito.flatMap(grupo =>
+                      grupo.movimientos.map(m => (
+                        <EfacilitoMovCard key={m.id} m={m} referencia_id={grupo.referencia_id} />
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  /* ── DESKTOP: tabla Efacilito ── */
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', minWidth: 580, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: '20%' }} />
+                        <col style={{ width: '15%' }} />
+                        <col style={{ width: '30%' }} />
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '12%' }} />
+                        <col style={{ width: '11%' }} />
+                      </colgroup>
+                      <thead>
+                        <tr style={{ background: C.deep }}>
+                          <Th label="Fecha"        col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                          <Th label="Nro. Factura" col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                          <Th label="Producto"     col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                          <Th label="Cantidad"     col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                          <Th label="Stock ant."   col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                          <Th label="Stock nuevo"  col={null} sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gruposEfacilito.flatMap(grupo =>
+                          grupo.movimientos.map((m, i) => (
+                            <tr key={m.id} style={{ borderBottom: `1px solid ${C.grid}`,
+                              background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
+                              <td style={{ padding: '8px 10px', color: C.textDim, fontSize: 12, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                {fmtFecha(m.creado_en)}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                <span style={{ color: '#8b5cf6', fontWeight: 600, fontFamily: 'monospace', fontSize: 12 }}>
+                                  #{grupo.referencia_id}
+                                </span>
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                <div style={{ color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {m.descripcion}
+                                </div>
+                                <div style={{ color: C.textDim, fontSize: 11, fontFamily: 'monospace' }}>{m.codigo}</div>
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, color: C.rojo, whiteSpace: 'nowrap' }}>
+                                −{Math.abs(parseFloat(m.cantidad))}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim }}>
+                                {parseFloat(m.stock_anterior)}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'center',
+                                color: parseFloat(m.stock_nuevo) < 0 ? C.rojo : C.textSec, fontWeight: 600 }}>
+                                {parseFloat(m.stock_nuevo)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )
               )}
             </div>
           </div>
@@ -426,71 +599,82 @@ export default function ReporteMovimientos({ desde, hasta }) {
             </div>
           )}
 
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
-            overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-            {/* overflowX ya existía; añadimos minWidth a la tabla para forzar scroll en móvil */}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
-                <colgroup>
-                  <col style={{ width: '14%' }} /> {/* Fecha */}
-                  <col style={{ width: '20%' }} /> {/* Producto */}
-                  <col style={{ width: '16%' }} /> {/* Tipo */}
-                  <col style={{ width: '10%' }} /> {/* Cantidad */}
-                  <col style={{ width: '10%' }} /> {/* Stock ant. */}
-                  <col style={{ width: '10%' }} /> {/* Stock nuevo */}
-                  <col style={{ width: '11%' }} /> {/* Referencia */}
-                  <col style={{ width: '9%' }} />  {/* Usuario */}
-                </colgroup>
-                <thead>
-                  <tr style={{ background: C.deep }}>
-                    <Th label="Fecha"       col="creado_en"       sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Producto"    col="descripcion"     sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Tipo"        col="tipo"            sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Cantidad"    col="cantidad"        sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Stock ant."  col="stock_anterior"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Stock nuevo" col="stock_nuevo"     sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Referencia"  col="referencia_tipo" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                    <Th label="Usuario"     col="usuario_nombre"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedNormales.map((m, i) => (
-                    <tr key={m.id} style={{ borderBottom: `1px solid ${C.grid}`,
-                      background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
-                      <td style={{ padding: '8px 10px', color: C.textDim, fontSize: 12, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {fmtFecha(m.creado_en)}
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', overflow: 'hidden' }}>
-                        <div style={{ color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descripcion}</div>
-                        <div style={{ color: C.textDim, fontSize: 11, fontFamily: 'monospace' }}>{m.codigo}</div>
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                        <BadgeTipo tipo={m.tipo} />
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700,
-                        color: ES_SALIDA(m.tipo) ? C.rojo : C.verde, whiteSpace: 'nowrap' }}>
-                        {ES_SALIDA(m.tipo) ? '−' : '+'}{Math.abs(parseFloat(m.cantidad))}
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim }}>
-                        {parseFloat(m.stock_anterior)}
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center',
-                        color: parseFloat(m.stock_nuevo) < 0 ? C.rojo : C.textSec,
-                        fontWeight: 600 }}>
-                        {parseFloat(m.stock_nuevo)}
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.referencia_tipo || '—'}
-                      </td>
-                      <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.usuario_nombre || '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {isSmall ? (
+            /* ── MÓVIL: cards ── */
+            <div>
+              <MobileSortBar sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {sortedNormales.map(m => (
+                  <MovCard key={m.id} m={m} />
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            /* ── DESKTOP: tabla ── */
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse', fontSize: 13, tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '20%' }} />
+                    <col style={{ width: '16%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '9%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ background: C.deep }}>
+                      <Th label="Fecha"       col="creado_en"       sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Producto"    col="descripcion"     sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Tipo"        col="tipo"            sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Cantidad"    col="cantidad"        sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Stock ant."  col="stock_anterior"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Stock nuevo" col="stock_nuevo"     sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Referencia"  col="referencia_tipo" sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                      <Th label="Usuario"     col="usuario_nombre"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} align="center" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedNormales.map((m, i) => (
+                      <tr key={m.id} style={{ borderBottom: `1px solid ${C.grid}`,
+                        background: i % 2 === 0 ? 'transparent' : '#fafafa' }}>
+                        <td style={{ padding: '8px 10px', color: C.textDim, fontSize: 12, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {fmtFecha(m.creado_en)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', overflow: 'hidden' }}>
+                          <div style={{ color: C.textSec, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descripcion}</div>
+                          <div style={{ color: C.textDim, fontSize: 11, fontFamily: 'monospace' }}>{m.codigo}</div>
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                          <BadgeTipo tipo={m.tipo} />
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700,
+                          color: ES_SALIDA(m.tipo) ? C.rojo : C.verde, whiteSpace: 'nowrap' }}>
+                          {ES_SALIDA(m.tipo) ? '−' : '+'}{Math.abs(parseFloat(m.cantidad))}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim }}>
+                          {parseFloat(m.stock_anterior)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center',
+                          color: parseFloat(m.stock_nuevo) < 0 ? C.rojo : C.textSec, fontWeight: 600 }}>
+                          {parseFloat(m.stock_nuevo)}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.referencia_tipo || '—'}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'center', color: C.textDim, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.usuario_nombre || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
