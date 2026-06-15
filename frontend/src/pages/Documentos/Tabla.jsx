@@ -1470,8 +1470,8 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
     .tbl-header th { color: #000; background: #fff; padding: 4px 4px; font-weight: 900; text-transform: uppercase; font-size: 7pt; border-bottom: 2px solid #000; border-right: 1px solid #000; }
     .tbl-header th:last-child { border-right: none; }
     .tbl-header th.r { text-align: right; }
-    tbody tr td { padding: 3px 4px; border-bottom: 1px solid #ccc; vertical-align: top; color: #000; }
-    tbody tr:nth-child(even) { background: #f5f5f5; }
+    tbody tr td { padding: 3px 4px; border-bottom: 1px solid #ccc; vertical-align: top; color: #000; background: #fff; }
+    .sin-sep td { border-bottom: none; }
     td.r { text-align: right; }
     td.desc { word-wrap: break-word; max-width: 90px; }
     .iva-label { font-size: 6.5pt; color: #000; font-weight: 900; }
@@ -1524,15 +1524,22 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
       </tr>
     </thead>
     <tbody>
-      ${filas.map(f => {
+      ${filas.map((f, i) => {
         const sub = parseFloat(f.cantidad) * parseFloat(f.precio);
-        return `<tr>
+        const esUltima = i === filas.length - 1;
+        return `<tr${esUltima ? ' class="sin-sep"' : ''}>
           <td style="text-align:center;padding:3px 4px;">${parseFloat(f.cantidad)}</td>
           <td class="desc">${f.descripcion}</td>
           <td class="r">${parseFloat(f.precio).toFixed(2)}</td>
           <td class="r">${sub.toFixed(2)}</td>
         </tr>`;
       }).join('')}
+      ${Array.from({ length: Math.max(0, 8 - filas.length) }).map(() => `<tr class="sin-sep" style="height:22px;">
+        <td style="padding:3px 4px;"></td>
+        <td class="desc"></td>
+        <td class="r"></td>
+        <td class="r"></td>
+      </tr>`).join('')}
     </tbody>
   </table>
 
