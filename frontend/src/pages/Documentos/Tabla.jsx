@@ -1534,7 +1534,7 @@ export const generarHTMLTermica = ({ tipo, numero, cliente, fecha, notas, filas,
           <td class="r">${sub.toFixed(2)}</td>
         </tr>`;
       }).join('')}
-      ${Array.from({ length: Math.max(0, 8 - filas.length) }).map(() => `<tr class="sin-sep" style="height:22px;">
+      ${Array.from({ length: Math.max(0, 12 - filas.length) }).map(() => `<tr class="sin-sep" style="height:22px;">
         <td style="padding:3px 4px;"></td>
         <td class="desc"></td>
         <td class="r"></td>
