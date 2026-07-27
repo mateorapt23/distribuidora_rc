@@ -2,22 +2,19 @@ name: Respaldo diario de base de datos
 
 on:
   schedule:
-    - cron: '0 7 * * *'   # todos los días a las 07:00 UTC (2:00 am Ecuador)
-  workflow_dispatch:        # permite ejecutarlo manualmente desde GitHub
+    - cron: '0 7 * * *'
+  workflow_dispatch:
 
 jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Instalar cliente de PostgreSQL
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
-
       - name: Generar dump de la base de datos
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           fecha=$(date +'%Y-%m-%d_%H-%M')
-          pg_dump "$DATABASE_URL" -F c -f "backup_${fecha}.dump"
+          docker run --rm -v "$PWD":/backup postgres:18 pg_dump "$DATABASE_URL" -F c -f "/backup/backup_${fecha}.dump"
 
       - name: Subir respaldo como artefacto
         uses: actions/upload-artifact@v4
