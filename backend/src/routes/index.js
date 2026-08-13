@@ -78,13 +78,13 @@ documentosRouter.delete('/:id',         soloAdmin, eliminarDoc);
 
 // ── COMPRAS ───────────────────────────────────────────────
 const comprasRouter = express.Router();
-comprasRouter.use(verificarToken);
+comprasRouter.use(verificarToken, soloAdmin);
 comprasRouter.get('/',                          listarComp);
 comprasRouter.get('/:id',                       obtenerComp);
-comprasRouter.post('/sri/xml',                  uploadMemory.single('archivo'), parsearXMLFactura); // ← ACTUALIZADO
+comprasRouter.post('/sri/xml',                  uploadMemory.single('archivo'), parsearXMLFactura);
 comprasRouter.post('/',                         crearComp);
-comprasRouter.put('/:id',                       soloAdmin, actualizarComp);
-comprasRouter.delete('/:id',                    soloAdmin, eliminarComp);
+comprasRouter.put('/:id',                       actualizarComp);
+comprasRouter.delete('/:id',                    eliminarComp);
 
 // ── USUARIOS ──────────────────────────────────────────────
 const usuariosRouter = express.Router();
@@ -109,7 +109,7 @@ reportesRouter.get('/movimientos',            movimientos);
 
 // ── FACTURAS EFACILITO ────────────────────────────────────
 const facturasEfRouter = express.Router();
-facturasEfRouter.use(verificarToken);
+facturasEfRouter.use(verificarToken, soloAdmin);
 facturasEfRouter.post('/importar',  ...importar);
 facturasEfRouter.get('/exportar',   exportarFacEf);
 facturasEfRouter.get('/',           listarFacEf);
