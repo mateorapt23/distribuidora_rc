@@ -70,6 +70,13 @@ export default function Usuarios() {
       setError('Nombre, usuario y contraseña son requeridos');
       return;
     }
+    if (form.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(form.email)) {
+        setError('El correo electrónico no es válido');
+        return;
+      }
+    }
     setGuardando(true);
     setError('');
     try {
@@ -358,9 +365,9 @@ export default function Usuarios() {
               ¿Eliminar usuario?
             </h2>
             <p style={{ color: C.textDim, fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>
-              Se desactivará la cuenta de{' '}
+              Se eliminará permanentemente la cuenta de{' '}
               <span style={{ color: C.textSec, fontWeight: 700 }}>{confirmEliminar.nombre}</span>.
-              No perderá el historial de documentos.
+              Esta acción no se puede deshacer.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button onClick={() => setConfirmEliminar(null)}

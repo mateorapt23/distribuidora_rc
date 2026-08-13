@@ -22,6 +22,12 @@ const crear = async (req, res) => {
   if (!['admin', 'bodeguero'].includes(rol)) {
     return res.status(400).json({ error: 'Rol inválido' });
   }
+  if (email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'El correo electrónico no es válido' });
+    }
+  }
 
   try {
     const hash = await bcrypt.hash(password, 10);
@@ -58,13 +64,13 @@ const actualizar = async (req, res) => {
         nombre = COALESCE($1, nombre),
         rol    = COALESCE($2, rol),
         activo = COALESCE($3, activo),
-        email  = $5
+        email  = COALESCE($5, email)
         ${hash ? ', password = $6' : ''}
        WHERE id = $4
        RETURNING id, nombre, username, rol, email, activo`,
       hash
-        ? [nombre, rol, activo, req.params.id, email ?? null, hash]
-        : [nombre, rol, activo, req.params.id, email ?? null]
+        ? [nombre ?? null, rol ?? null, activo ?? null, req.params.id, email ?? null, hash]
+        : [nombre ?? null, rol ?? null, activo ?? null, req.params.id, email ?? null]
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
 
@@ -92,21 +98,22 @@ const eliminar = async (req, res) => {
     return res.status(400).json({ error: 'No puedes eliminar tu propio usuario' });
   }
   try {
-    // Obtenemos el nombre antes de desactivar para el log
+    // Obtenemos el nombre antes de eliminar para el log
     const { rows } = await pool.query(
       'SELECT username FROM usuarios WHERE id = $1', [req.params.id]
     );
+    if (rows.length === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    await pool.query('UPDATE usuarios SET activo = FALSE WHERE id = $1', [req.params.id]);
+    await pool.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
 
     await registrarLog(req, {
-      accion: 'desactivar_usuario',
+      accion: 'eliminar_usuario',
       modulo: 'usuarios',
-      descripcion: `Desactivó el usuario "${rows[0]?.username || req.params.id}"`,
+      descripcion: `Eliminó permanentemente el usuario "${rows[0].username}"`,
       referencia_id: parseInt(req.params.id),
     });
 
-    res.json({ mensaje: 'Usuario desactivado' });
+    res.json({ mensaje: 'Usuario eliminado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar usuario' });
   }
