@@ -448,10 +448,13 @@ function PanelHistorial() {
   const eliminarLote = async (archivoOrigen, idsLote) => {
     if (!window.confirm(`¿Eliminar las ${idsLote.length} facturas de la importación "${archivoOrigen}"?\nEsta acción no se puede deshacer.`)) return;
     try {
-      await Promise.all(idsLote.map(id => api.delete(`/facturas-ef/${id}`)));
+      const valorArchivo = (archivoOrigen === '—') ? '__sin_origen__' : archivoOrigen;
+      await api.delete(`/facturas-ef/lote?archivo=${encodeURIComponent(valorArchivo)}`);
       setFacturas(prev => prev.filter(f => !idsLote.includes(f.id)));
       if (expandido === archivoOrigen) setExpandido(null);
-    } catch { setError('Error al eliminar el lote.'); }
+    } catch {
+      setError('Error al eliminar el lote.');
+    }
   };
 
   // Agrupar facturas por archivo_origen

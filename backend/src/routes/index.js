@@ -15,7 +15,7 @@ const { listar: listarDoc, obtener: obtenerDoc, crear: crearDoc, actualizar: act
 const { listar: listarComp, obtener: obtenerComp, crear: crearComp, actualizar: actualizarComp, eliminar: eliminarComp } = require('../controllers/comprasController');
 const { listar: listarUs, crear: crearUs, actualizar: actualizarUs, eliminar: eliminarUs } = require('../controllers/usuariosController');
 const { resumen, reporteVentas, productosMasVendidos, movimientos, alertasStock } = require('../controllers/dashboardController');
-const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf } = require('../controllers/facturasEfController');
+const { importar, listar: listarFacEf, exportar: exportarFacEf, eliminar: eliminarFacEf, eliminarLote: eliminarLoteFacEf } = require('../controllers/facturasEfController');
 const { generarPDF, generarCaptura } = require('../controllers/pdfController');
 const {
   listar: listarClientes,
@@ -113,6 +113,7 @@ facturasEfRouter.use(verificarToken, soloAdmin);
 facturasEfRouter.post('/importar',  ...importar);
 facturasEfRouter.get('/exportar',   exportarFacEf);
 facturasEfRouter.get('/',           listarFacEf);
+facturasEfRouter.delete('/lote',    eliminarLoteFacEf);   // ← debe ir ANTES de /:id
 facturasEfRouter.delete('/:id',     eliminarFacEf);
 
 // ── LOGS DE ACTIVIDAD ─────────────────────────────────────

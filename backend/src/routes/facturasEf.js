@@ -19,6 +19,10 @@ router.get('/exportar', ctrl.exportar);
 // GET   /api/facturas-ef            → lista con filtros opcionales
 router.get('/', ctrl.listar);
 
+// DELETE /api/facturas-ef/lote?archivo=NOMBRE  → elimina toda una importación de una vez
+// (debe ir ANTES de /:id para que "lote" no se interprete como un id)
+router.delete('/lote', ctrl.eliminarLote);
+
 // DELETE /api/facturas-ef/:id       → elimina una factura del historial
 router.delete('/:id', ctrl.eliminar);
 

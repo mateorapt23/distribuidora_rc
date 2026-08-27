@@ -433,17 +433,92 @@ const eliminar = async (req, res) => {
   }
 };
 
+// ════════════════════════════════════════════════════════════
+// DELETE /api/facturas-ef/lote/:archivoOrigen
+// Elimina TODAS las facturas de una importación en una sola
+// transacción atómica (o se borra todo o no se borra nada).
+// ════════════════════════════════════════════════════════════
+const eliminarLote = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const archivoOrigen = req.query.archivo;
+    if (!archivoOrigen) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Falta el parámetro "archivo".' });
+    }
+    const esSinOrigen = archivoOrigen === '__sin_origen__';
+
+    // 1. Obtener los ids de las facturas de este lote
+    const { rows: facturasLote } = await client.query(
+      esSinOrigen
+        ? 'SELECT id FROM facturas_efacilito WHERE archivo_origen IS NULL'
+        : 'SELECT id FROM facturas_efacilito WHERE archivo_origen = $1',
+      esSinOrigen ? [] : [archivoOrigen]
+    );
+
+    if (facturasLote.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Importación no encontrada.' });
+    }
+
+    const ids = facturasLote.map(f => f.id);
+
+    // 2. Revertir el stock de todos los movimientos de este lote de una vez
+    const { rows: movs } = await client.query(
+      `SELECT producto_id, SUM(cantidad) AS cantidad
+       FROM movimiento_stock
+       WHERE referencia_id = ANY($1) AND referencia_tipo = 'facturas_efacilito'
+       GROUP BY producto_id`,
+      [ids]
+    );
+
+    for (const mov of movs) {
+      await client.query(
+        'UPDATE productos SET stock = stock + $1 WHERE id = $2',
+        [parseFloat(mov.cantidad), mov.producto_id]
+      );
+    }
+
+    // 3. Borrar los movimientos de stock de todo el lote
+    await client.query(
+      `DELETE FROM movimiento_stock
+       WHERE referencia_id = ANY($1) AND referencia_tipo = 'facturas_efacilito'`,
+      [ids]
+    );
+
+    // 4. Borrar las facturas del lote (el detalle se borra por CASCADE)
+    const { rowCount } = await client.query(
+      esSinOrigen
+        ? 'DELETE FROM facturas_efacilito WHERE archivo_origen IS NULL'
+        : 'DELETE FROM facturas_efacilito WHERE archivo_origen = $1',
+      esSinOrigen ? [] : [archivoOrigen]
+    );
+
+    await client.query('COMMIT');
+    res.json({ ok: true, facturasEliminadas: rowCount, productosRevertidos: movs.length });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[facturas-ef] eliminarLote:', err.message);
+    res.status(500).json({ error: 'Error al eliminar la importación.' });
+  } finally {
+    client.release();
+  }
+};
+
 // ── Mapper BD → frontend ──────────────────────────────────────
 const mapRow = (r) => ({
-  id:           r.id,
-  nro_factura:  r.nro_factura,
-  fecha:        r.fecha ? r.fecha.toISOString().split('T')[0] : null,
-  cedula_ruc:   r.cedula_ruc,
-  cliente:      r.cliente,
-  estado:       r.estado,
-  total:        parseFloat(r.total || 0),
-  importado_en: r.importado_en,
-  detalle:      (r.detalle || []).filter(d => d && d.id),
+  id:            r.id,
+  nro_factura:   r.nro_factura,
+  fecha:         r.fecha ? r.fecha.toISOString().split('T')[0] : null,
+  cedula_ruc:    r.cedula_ruc,
+  cliente:       r.cliente,
+  estado:        r.estado,
+  total:         parseFloat(r.total || 0),
+  archivo_origen: r.archivo_origen,
+  importado_en:  r.importado_en,
+  detalle:       (r.detalle || []).filter(d => d && d.id),
 });
 
-module.exports = { importar, listar, exportar, eliminar };
+module.exports = { importar, listar, exportar, eliminar, eliminarLote };
