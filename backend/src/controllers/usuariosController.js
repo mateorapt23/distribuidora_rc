@@ -1,6 +1,7 @@
 const pool = require('../config/db');
 const bcrypt = require('bcrypt');
 const { registrarLog } = require('./logHelper');
+const { validarEmail } = require('../utils/validaciones');
 
 const listar = async (req, res) => {
   try {
@@ -21,6 +22,9 @@ const crear = async (req, res) => {
   }
   if (!['admin', 'bodeguero'].includes(rol)) {
     return res.status(400).json({ error: 'Rol inválido' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
   }
   if (email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,6 +58,13 @@ const crear = async (req, res) => {
 
 const actualizar = async (req, res) => {
   const { nombre, rol, activo, password, email } = req.body;
+
+  if (password && password.length < 6) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+  }
+  if (email && !validarEmail(email)) {
+    return res.status(400).json({ error: 'El correo electrónico no es válido' });
+  }
 
   try {
     let hash = undefined;

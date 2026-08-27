@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { esNumeroValido } from '../../utils/validaciones';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -67,7 +68,13 @@ export default function Productos() {
   };
 
   const guardar = async () => {
-    if (!form.codigo || !form.descripcion) { setError('Código y descripción son requeridos'); return; }
+    if (!form.codigo || !form.codigo.trim()) { setError('El código es requerido'); return; }
+    if (!form.descripcion || !form.descripcion.trim()) { setError('La descripción es requerida'); return; }
+    if (!editando && !esNumeroValido(form.stock)) { setError('El stock actual debe ser un número válido y no negativo'); return; }
+    if (!esNumeroValido(form.stock_minimo)) { setError('El stock mínimo debe ser un número válido y no negativo'); return; }
+    if (!esNumeroValido(form.iva) || Number(form.iva) > 100) { setError('El IVA debe ser un número entre 0 y 100'); return; }
+    if (!esNumeroValido(form.pvp1)) { setError('El PVP1 debe ser un número válido y no negativo'); return; }
+    if (!esNumeroValido(form.pvp2)) { setError('El PVP2 debe ser un número válido y no negativo'); return; }
     setGuardando(true); setError('');
     try {
       editando ? await api.put(`/productos/${editando}`, form) : await api.post('/productos', form);

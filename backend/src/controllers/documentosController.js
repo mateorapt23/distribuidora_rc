@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { registrarLog } = require('./logHelper');
+const { validarFilasDetalle } = require('../utils/validaciones');
 
 const generarNumero = async (client, tipo) => {
   const seq = tipo === 'proforma' ? 'seq_proforma' : 'seq_recibo';
@@ -69,6 +70,9 @@ const crear = async (req, res) => {
   if (!detalle || detalle.length === 0) {
     return res.status(400).json({ error: 'El documento debe tener al menos un producto' });
   }
+  const errorDetalle = validarFilasDetalle(detalle, 'precio');
+  if (errorDetalle) return res.status(400).json({ error: errorDetalle });
+  if (!fecha) req.body.fecha = new Date().toISOString().split('T')[0]; // ya tiene fallback más abajo, esta línea es opcional
 
   const client = await pool.connect();
   try {
@@ -141,6 +145,10 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   const { cliente, fecha, notas, detalle } = req.body;
   const client = await pool.connect();
+  
+  const errorDetalle = validarFilasDetalle(detalle, 'precio');
+  if (errorDetalle) return res.status(400).json({ error: errorDetalle });
+  if (!fecha) return res.status(400).json({ error: 'La fecha es requerida' });
 
   try {
     await client.query('BEGIN');

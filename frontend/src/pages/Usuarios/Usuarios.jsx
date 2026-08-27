@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { validarEmail } from '../../utils/validaciones';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff', deep: '#f9fafb',
@@ -70,12 +71,13 @@ export default function Usuarios() {
       setError('Nombre, usuario y contraseña son requeridos');
       return;
     }
-    if (form.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(form.email)) {
-        setError('El correo electrónico no es válido');
-        return;
-      }
+    if (form.password && form.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    if (!validarEmail(form.email)) {
+      setError('El correo electrónico no es válido');
+      return;
     }
     setGuardando(true);
     setError('');

@@ -1,5 +1,6 @@
 const pool = require('../config/db');
 const { registrarLog } = require('./logHelper');
+const { validarFilasDetalle, validarRuc } = require('../utils/validaciones');
 
 const generarNumeroCompra = async (client) => {
   const { rows } = await client.query("SELECT nextval('seq_compra') AS n");
@@ -67,6 +68,11 @@ const crear = async (req, res) => {
 
   if (!detalle || detalle.length === 0) {
     return res.status(400).json({ error: 'La compra debe tener al menos un producto' });
+  }
+  const errorDetalle = validarFilasDetalle(detalle, 'costo');
+  if (errorDetalle) return res.status(400).json({ error: errorDetalle });
+  if (ruc_proveedor && !validarRuc(ruc_proveedor)) {
+    return res.status(400).json({ error: 'El RUC del proveedor no es válido' });
   }
 
   const client = await pool.connect();
@@ -196,6 +202,12 @@ const actualizar = async (req, res) => {
   if (!detalle || detalle.length === 0) {
     return res.status(400).json({ error: 'La compra debe tener al menos un producto' });
   }
+  const errorDetalle = validarFilasDetalle(detalle, 'costo');
+  if (errorDetalle) return res.status(400).json({ error: errorDetalle });
+  if (ruc_proveedor && !validarRuc(ruc_proveedor)) {
+    return res.status(400).json({ error: 'El RUC del proveedor no es válido' });
+  }
+  if (!fecha) return res.status(400).json({ error: 'La fecha es requerida' });
 
   const client = await pool.connect();
   try {

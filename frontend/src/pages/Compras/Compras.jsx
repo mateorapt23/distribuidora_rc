@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { validarFilasDetalle, validarRuc, esNumeroValido } from '../../utils/validaciones';
 
 // ── Paleta dark premium ────────────────────────────────────
 const D = {
@@ -667,9 +668,12 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   // Paso 1: validar y abrir modal de precios si hay ítems marcados,
   // o guardar directamente si no hay ninguno marcado.
   const guardar = () => {
-    const validas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
-    if (validas.length === 0) { alert('Agrega al menos un producto'); return; }
+    const errorDetalle = validarFilasDetalle(filas, 'costo');
+    if (errorDetalle) { alert(errorDetalle); return; }
     if (!proveedor.trim()) { alert('Ingresa el nombre del proveedor'); return; }
+    if (ruc.trim() && !validarRuc(ruc.trim())) { alert('El RUC del proveedor no es válido'); return; }
+    if (!fecha) { alert('La fecha es requerida'); return; }
+    const validas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
 
     const paraInventario = validas
       .filter(f => f.guardarEnInventario)
@@ -727,8 +731,12 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
 
   // Llamado desde el modal cuando el usuario confirma precios
   const guardarInventarioBatch = () => {
-    ejecutarGuardar(productosParaInventario);
-  };
+  const invalido = productosParaInventario.some(p =>
+    !esNumeroValido(p.pvp1) || !esNumeroValido(p.pvp2) || !esNumeroValido(p.iva) || Number(p.iva) > 100
+  );
+  if (invalido) { alert('Hay productos con PVP1, PVP2 o IVA inválidos (deben ser números, IVA entre 0 y 100)'); return; }
+  ejecutarGuardar(productosParaInventario);
+};
 
   // Omitir inventario → guardar compra sin agregar a productos
   const omitirInventario = () => {
@@ -976,7 +984,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
                 placeholder="Nombre del proveedor" style={inp} />
             </Field>
             <Field label="RUC / Cédula">
-              <input value={ruc} onChange={e => setRuc(e.target.value)}
+              <input value={ruc} onChange={e => setRuc(e.target.value.replace(/\D/g, '').slice(0, 13))}
                 placeholder="1792072018001"
                 style={{ ...inp, fontFamily: 'monospace', fontSize: 12.5 }} />
             </Field>

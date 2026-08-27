@@ -3,6 +3,23 @@ const xlsx = require('xlsx');
 const fs = require('fs');
 const { registrarLog } = require('./logHelper');
 
+const esNumeroValido = (valor, { permitirNegativo = false } = {}) => {
+  if (valor === '' || valor === null || valor === undefined) return false;
+  const n = Number(valor);
+  if (Number.isNaN(n)) return false;
+  if (!permitirNegativo && n < 0) return false;
+  return true;
+};
+
+const validarCamposProducto = ({ stock, stock_minimo, iva, pvp1, pvp2 }) => {
+  if (stock !== undefined && !esNumeroValido(stock)) return 'El stock actual debe ser un número válido y no negativo';
+  if (stock_minimo !== undefined && !esNumeroValido(stock_minimo)) return 'El stock mínimo debe ser un número válido y no negativo';
+  if (iva !== undefined && (!esNumeroValido(iva) || Number(iva) > 100)) return 'El IVA debe ser un número entre 0 y 100';
+  if (pvp1 !== undefined && !esNumeroValido(pvp1)) return 'El PVP1 debe ser un número válido y no negativo';
+  if (pvp2 !== undefined && !esNumeroValido(pvp2)) return 'El PVP2 debe ser un número válido y no negativo';
+  return null;
+};
+
 const listar = async (req, res) => {
   const { buscar, stock_bajo, page = 1, limit = 50 } = req.query;
   const offset = (page - 1) * limit;
@@ -61,6 +78,8 @@ const crear = async (req, res) => {
   if (!codigo || !descripcion) {
     return res.status(400).json({ error: 'Código y descripción son requeridos' });
   }
+  const errorNum = validarCamposProducto({ stock, stock_minimo, iva, pvp1, pvp2 });
+  if (errorNum) return res.status(400).json({ error: errorNum });
 
   try {
     const { rows } = await pool.query(
@@ -86,6 +105,9 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   const { codigo, descripcion, inventariable, stock_minimo, iva, pvp1, pvp2 } = req.body;
 
+  const errorNum = validarCamposProducto({ stock_minimo, iva, pvp1, pvp2 });
+  if (errorNum) return res.status(400).json({ error: errorNum });
+
   try {
     const { rows } = await pool.query(
       `UPDATE productos SET
@@ -99,6 +121,7 @@ const actualizar = async (req, res) => {
        WHERE id = $8 AND activo = TRUE RETURNING *`,
       [codigo, descripcion, inventariable, stock_minimo, iva, pvp1, pvp2, req.params.id]
     );
+
     if (rows.length === 0) return res.status(404).json({ error: 'Producto no encontrado' });
 
     await registrarLog(req, {
@@ -373,6 +396,9 @@ const guardarBatchInventario = async (req, res) => {
       const pvp2        = parseFloat(p.pvp2) || 0;
 
       if (!codigo || !descripcion) continue;
+
+      const errorNum = validarCamposProducto({ iva, pvp1, pvp2 });
+      if (errorNum) continue;
 
       const { rows: existe } = await client.query(
         'SELECT id FROM productos WHERE codigo = $1', [codigo]

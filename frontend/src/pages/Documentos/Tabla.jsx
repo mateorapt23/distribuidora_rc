@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../../api/config';
 import { generarHTML } from './Guardados';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { validarFilasDetalle } from '../../utils/validaciones';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -284,8 +285,10 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const total = subtotalBase;
 
   const guardar = async () => {
+    const errorDetalle = validarFilasDetalle(filas, 'precio');
+    if (errorDetalle) { alert(errorDetalle); return; }
+    if (!fecha) { alert('La fecha es requerida'); return; }
     const filasValidas = filas.filter(f => f.descripcion && parseFloat(f.cantidad) > 0);
-    if (filasValidas.length === 0) { alert('Agrega al menos un producto'); return; }
     setGuardando(true);
     try {
       const detalle = filasValidas.map(f => ({

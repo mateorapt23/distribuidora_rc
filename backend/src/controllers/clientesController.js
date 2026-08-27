@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const xlsx = require('xlsx');
 const fs   = require('fs');
 const { registrarLog } = require('./logHelper');
+const { validarIdentificacion, validarEmail, validarTelefono } = require('../utils/validaciones');
 
 // ── Listar ────────────────────────────────────────────────
 const listar = async (req, res) => {
@@ -79,9 +80,13 @@ const obtener = async (req, res) => {
 const crear = async (req, res) => {
   const { identificacion, tipo, nombre, direccion, telefono, email } = req.body;
 
-  if (!identificacion || !tipo || !nombre) {
-    return res.status(400).json({ error: 'Identificación, tipo y nombre son requeridos' });
+  if (!tipo || !nombre || !nombre.trim()) {
+    return res.status(400).json({ error: 'Tipo y nombre son requeridos' });
   }
+  const errorId = validarIdentificacion(identificacion, tipo);
+  if (errorId) return res.status(400).json({ error: errorId });
+  if (!validarEmail(email)) return res.status(400).json({ error: 'El correo electrónico ingresado no es válido' });
+  if (!validarTelefono(telefono)) return res.status(400).json({ error: 'El teléfono debe contener solo números (7 a 10 dígitos)' });
 
   try {
     const { rows } = await pool.query(
@@ -107,6 +112,17 @@ const crear = async (req, res) => {
 // ── Actualizar ────────────────────────────────────────────
 const actualizar = async (req, res) => {
   const { identificacion, tipo, nombre, direccion, telefono, email } = req.body;
+  
+  if (identificacion !== undefined && tipo !== undefined) {
+    const errorId = validarIdentificacion(identificacion, tipo);
+    if (errorId) return res.status(400).json({ error: errorId });
+  }
+  if (email !== undefined && !validarEmail(email)) {
+    return res.status(400).json({ error: 'El correo electrónico ingresado no es válido' });
+  }
+  if (telefono !== undefined && !validarTelefono(telefono)) {
+    return res.status(400).json({ error: 'El teléfono debe contener solo números (7 a 10 dígitos)' });
+  }
 
   try {
     const { rows } = await pool.query(
@@ -201,7 +217,9 @@ const importarExcel = async (req, res) => {
     };
 
     const normalizarTipo = (raw) => {
-      const v = (raw || '').toString().toUpperCase().trim();
+      const v = (raw || '').toString()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita tildes (CÉDULA -> CEDULA)
+        .toUpperCase().trim();
       if (v.includes('RUC'))       return 'RUC';
       if (v.includes('CED'))       return 'CEDULA';
       if (v.includes('PAS'))       return 'PASAPORTE';
@@ -226,6 +244,18 @@ const importarExcel = async (req, res) => {
 
         if (!identificacion || !nombre) {
           errores.push(`Fila sin identificación o nombre: ${JSON.stringify(fila)}`);
+          continue;
+        }
+        if (identificacion.length > 20) {
+          errores.push(`Identificación demasiado larga (${identificacion.length} caracteres): "${identificacion.slice(0, 30)}..." — cliente "${nombre}"`);
+          continue;
+        }
+        if (telefono && telefono.length > 20) {
+          errores.push(`Teléfono demasiado largo — cliente "${nombre}"`);
+          continue;
+        }
+        if (nombre.length > 200) {
+          errores.push(`Nombre demasiado largo — fila omitida`);
           continue;
         }
 

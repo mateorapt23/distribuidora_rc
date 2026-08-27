@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { validarRangoFechas } from '../../utils/validaciones';
 
 const C = {
   bg: '#f4f5fb', card: '#ffffff',
@@ -138,7 +139,10 @@ export default function Actividad() {
     } catch { console.error('Error al cargar usuarios para filtro'); }
   }, []);
 
+  const errorFechas = validarRangoFechas(filtros.fecha_desde, filtros.fecha_hasta);
+
   const cargar = useCallback(async (p = 1) => {
+    if (validarRangoFechas(filtros.fecha_desde, filtros.fecha_hasta)) return;
     setCargando(true);
     try {
       const params = { page: p, limit, ...Object.fromEntries(Object.entries(filtros).filter(([, v]) => v !== '')) };
@@ -251,6 +255,10 @@ export default function Actividad() {
               style={inputSt}
             />
           </div>
+
+          {errorFechas && (
+            <span style={{ fontSize: 12, color: C.rojo, fontWeight: 500 }}>{errorFechas}</span>
+          )}
 
           {hayFiltros && (
             <button

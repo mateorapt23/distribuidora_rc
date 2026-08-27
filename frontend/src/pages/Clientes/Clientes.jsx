@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { validarIdentificacion, validarEmail, validarTelefono } from '../../utils/validaciones';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -78,8 +79,16 @@ export default function Clientes() {
   };
 
   const guardar = async () => {
-    if (!form.identificacion || !form.nombre) {
-      setError('Identificación y nombre son requeridos'); return;
+    if (!form.nombre || !form.nombre.trim()) {
+      setError('El nombre es requerido'); return;
+    }
+    const errorId = validarIdentificacion(form.identificacion, form.tipo);
+    if (errorId) { setError(errorId); return; }
+    if (!validarEmail(form.email)) {
+      setError('El correo electrónico ingresado no es válido'); return;
+    }
+    if (!validarTelefono(form.telefono)) {
+      setError('El teléfono debe contener solo números (7 a 10 dígitos)'); return;
     }
     setGuardando(true); setError('');
     try {
@@ -261,10 +270,20 @@ export default function Clientes() {
           {error && <ErrorBox msg={error} />}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <Campo label="Identificación" span={1}>
-              <Input value={form.identificacion} onChange={v => setForm({ ...form, identificacion: v })} placeholder="Ej: 0102345678" />
+              <Input
+                value={form.identificacion}
+                onChange={v => {
+                  const soloDigitos = (form.tipo === 'CEDULA' || form.tipo === 'RUC')
+                    ? v.replace(/\D/g, '')
+                    : v;
+                  const max = form.tipo === 'CEDULA' ? 10 : form.tipo === 'RUC' ? 13 : 20;
+                  setForm({ ...form, identificacion: soloDigitos.slice(0, max) });
+                }}
+                placeholder={form.tipo === 'CEDULA' ? 'Ej: 0102345678 (10 dígitos)' : form.tipo === 'RUC' ? 'Ej: 0102345678001 (13 dígitos)' : 'Identificación'}
+              />
             </Campo>
             <Campo label="Tipo" span={1}>
-              <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value })} style={inputSt}>
+              <select value={form.tipo} onChange={e => setForm({ ...form, tipo: e.target.value, identificacion: '' })} style={inputSt}>
                 <option value="CEDULA">Cédula</option>
                 <option value="RUC">RUC</option>
                 <option value="PASAPORTE">Pasaporte</option>
@@ -275,10 +294,10 @@ export default function Clientes() {
               <Input value={form.nombre} onChange={v => setForm({ ...form, nombre: v })} placeholder="Nombre del cliente" />
             </Campo>
             <Campo label="Teléfono" span={1}>
-              <Input value={form.telefono} onChange={v => setForm({ ...form, telefono: v })} placeholder="Ej: 0991234567" />
+              <Input value={form.telefono} onChange={v => setForm({ ...form, telefono: v.replace(/\D/g, '').slice(0, 10) })} placeholder="Ej: 0991234567" />
             </Campo>
             <Campo label="Email" span={1}>
-              <Input value={form.email} onChange={v => setForm({ ...form, email: v })} placeholder="correo@ejemplo.com" />
+              <Input type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} placeholder="correo@ejemplo.com" />
             </Campo>
             <Campo label="Dirección" span={2}>
               <Input value={form.direccion} onChange={v => setForm({ ...form, direccion: v })} placeholder="Dirección del cliente" />

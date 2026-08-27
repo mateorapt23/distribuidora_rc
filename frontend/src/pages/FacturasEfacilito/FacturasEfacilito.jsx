@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { validarRangoFechas } from '../../utils/validaciones';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -405,7 +406,10 @@ function PanelHistorial() {
   const [expandido, setExpandido] = useState(null);   // archivo_origen del lote abierto
   const [modalDetalle, setModalDetalle] = useState(null);
 
+  const errorFechas = validarRangoFechas(fechaDesde, fechaHasta);
+
   const cargar = useCallback(async () => {
+    if (validarRangoFechas(fechaDesde, fechaHasta)) return;
     setCargando(true);
     setError('');
     try {
@@ -426,6 +430,7 @@ function PanelHistorial() {
 
   // Exportar Excel
   const exportar = async () => {
+    if (errorFechas) { alert(errorFechas); return; }
     try {
       const params = new URLSearchParams();
       if (fechaDesde) params.append('fecha_desde', fechaDesde);
@@ -498,6 +503,9 @@ function PanelHistorial() {
           <input type="date" value={fechaHasta} onChange={e => setHasta(e.target.value)}
             style={{ ...inputSt, width: 160 }} />
         </div>
+        {errorFechas && (
+          <span style={{ fontSize: 12, color: C.rojo, fontWeight: 500, alignSelf: 'center' }}>{errorFechas}</span>
+        )}
         <div style={{ flex: 1, minWidth: 200 }}>
           <label style={{ fontSize: 11, fontWeight: 600, color: C.textDim, textTransform: 'uppercase',
             letterSpacing: 1, display: 'block', marginBottom: 5 }}>Buscar</label>
