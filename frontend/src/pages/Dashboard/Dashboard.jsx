@@ -104,10 +104,15 @@ export default function Dashboard() {
   useEffect(() => {
     const cargar = async () => {
       try {
+        const hoy = new Date();
+        const hace30 = new Date();
+        hace30.setDate(hoy.getDate() - 29);
+        const fechaDesde = hace30.toISOString().slice(0, 10);
+
         const [dash, masVendidos, movimientos] = await Promise.all([
           api.get('/dashboard'),
           api.get('/reportes/productos-mas-vendidos?limit=5'),
-          api.get('/reportes/movimientos?limit=200'),
+          api.get(`/reportes/movimientos?tipo=salida_recibo&fecha_desde=${fechaDesde}&limit=1000`),
         ]);
         setData({
           resumen:     dash.data,
@@ -174,15 +179,11 @@ export default function Dashboard() {
   const { resumen, masVendidos, movimientos } = data;
 
   // Gráfico línea — salidas últimos 30 días
-  const hoy = new Date();
-  const hace30 = new Date(); hace30.setDate(hoy.getDate() - 29);
   const diasMap = {};
   (movimientos || []).forEach(m => {
-    if (m.tipo === 'salida_recibo') {
-      const fecha = m.creado_en?.slice(0, 10);
-      if (fecha && new Date(fecha) >= hace30) {
-        diasMap[fecha] = (diasMap[fecha] || 0) + Math.abs(parseFloat(m.cantidad));
-      }
+    const fecha = m.creado_en?.slice(0, 10);
+    if (fecha) {
+      diasMap[fecha] = (diasMap[fecha] || 0) + Math.abs(parseFloat(m.cantidad));
     }
   });
   const datosLinea = Object.entries(diasMap)

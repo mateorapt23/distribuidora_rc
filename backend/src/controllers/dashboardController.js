@@ -1,12 +1,5 @@
 const pool = require('../config/db');
 
-// "HOY" siempre en hora de Ecuador, sin importar en qué zona horaria
-// corra el servidor de Postgres (Neon corre en UTC). Antes se usaba
-// CURRENT_DATE directo, que en UTC ya cae en "mañana" desde
-// aproximadamente las 19:00 hora de Ecuador en adelante, así que
-// "ventas hoy" contaba 0 aunque sí hubiera recibos del día.
-const HOY_ECUADOR = `(NOW() AT TIME ZONE 'America/Guayaquil')::date`;
-
 const resumen = async (req, res) => {
   try {
     const STOCK_CON_MOVIMIENTO = `
@@ -18,17 +11,7 @@ const resumen = async (req, res) => {
       )
     `;
 
-    // Proforma "pendiente" = no ha sido convertida todavía a recibo
-    // (antes se contaban solo las proformas creadas hoy, por eso
-    // casi siempre marcaba 0).
-    const PROFORMA_PENDIENTE = `
-      NOT EXISTS (
-        SELECT 1 FROM documentos r
-        WHERE r.tipo = 'recibo' AND r.convertido_de = d.id
-      )
-    `;
-
-    const [productos, stockBajo, proformasPendientes, recibosHoy, ventasMes, comprasMes] = await Promise.all([
+    const [productos, stockBajo, proformasHoy, recibosHoy, ventasMes, comprasMes] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM productos WHERE activo = TRUE'),
       pool.query(`
         SELECT COUNT(*) FROM productos p
@@ -36,22 +19,23 @@ const resumen = async (req, res) => {
           AND p.stock <= 5
           AND ${STOCK_CON_MOVIMIENTO}
       `),
-      pool.query(`SELECT COUNT(*) FROM documentos d WHERE d.tipo = 'proforma' AND ${PROFORMA_PENDIENTE}`),
-      pool.query(`SELECT COUNT(*), COALESCE(SUM(total),0) as total FROM documentos WHERE tipo = 'recibo' AND fecha = ${HOY_ECUADOR}`),
-      pool.query(`SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cantidad FROM documentos WHERE tipo = 'recibo' AND DATE_TRUNC('month', fecha) = DATE_TRUNC('month', ${HOY_ECUADOR})`),
-      pool.query(`SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cantidad FROM compras WHERE DATE_TRUNC('month', fecha) = DATE_TRUNC('month', ${HOY_ECUADOR})`),
+      pool.query("SELECT COUNT(*) FROM documentos WHERE tipo = 'proforma' AND fecha = CURRENT_DATE"),
+      pool.query("SELECT COUNT(*), COALESCE(SUM(total),0) as total FROM documentos WHERE tipo = 'recibo' AND fecha = CURRENT_DATE"),
+      pool.query("SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cantidad FROM documentos WHERE tipo = 'recibo' AND DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)"),
+      pool.query("SELECT COALESCE(SUM(total),0) as total, COUNT(*) as cantidad FROM compras WHERE DATE_TRUNC('month', fecha) = DATE_TRUNC('month', CURRENT_DATE)"),
     ]);
 
-    // Top 10 para la tabla del dashboard + el total REAL de productos con
-    // stock bajo (antes se usaba rows.length de una consulta con LIMIT,
-    // así que el aviso flotante nunca podía pasar de ese límite aunque
-    // hubiera muchos más productos en esa condición).
     const { rows: alertas } = await pool.query(`
       SELECT p.codigo, p.descripcion, p.stock, p.stock_minimo
       FROM productos p
       WHERE p.activo = TRUE AND p.inventariable = TRUE
         AND p.stock <= 5
-        AND ${STOCK_CON_MOVIMIENTO}
+        AND EXISTS (
+          SELECT 1 FROM movimiento_stock ms
+          WHERE ms.producto_id = p.id
+            AND ms.tipo IN ('entrada_compra', 'ajuste_manual')
+            AND ms.cantidad > 0
+        )
       ORDER BY (p.stock - p.stock_minimo) ASC LIMIT 10
     `);
 
@@ -63,7 +47,7 @@ const resumen = async (req, res) => {
     res.json({
       productos: parseInt(productos.rows[0].count),
       stock_bajo: parseInt(stockBajo.rows[0].count),
-      proformas_hoy: parseInt(proformasPendientes.rows[0].count),
+      proformas_hoy: parseInt(proformasHoy.rows[0].count),
       recibos_hoy: {
         cantidad: parseInt(recibosHoy.rows[0].count),
         total: parseFloat(recibosHoy.rows[0].total),
@@ -191,12 +175,6 @@ const alertasStock = async (req, res) => {
       )
     `;
 
-    // Antes 'total' era rows.length, que con el LIMIT 20 nunca podía pasar
-    // de 20 aunque hubiera muchos más productos con stock bajo (por eso el
-    // aviso decía "20 productos" mientras el dashboard decía 242: eran la
-    // misma condición, pero un número venía recortado por el LIMIT y el
-    // otro no). Ahora el total es un COUNT(*) real, y la lista sigue
-    // limitada a 20 solo para mostrar el detalle.
     const [{ rows }, { rows: totalRows }] = await Promise.all([
       pool.query(`
         SELECT p.codigo, p.descripcion, p.stock, p.stock_minimo
@@ -205,7 +183,10 @@ const alertasStock = async (req, res) => {
         ORDER BY p.stock ASC
         LIMIT 20
       `),
-      pool.query(`SELECT COUNT(*) FROM productos p WHERE ${CONDICION}`),
+      pool.query(`
+        SELECT COUNT(*) FROM productos p
+        WHERE ${CONDICION}
+      `),
     ]);
 
     res.json({ alertas: rows, total: parseInt(totalRows[0].count) });

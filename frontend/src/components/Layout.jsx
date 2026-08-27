@@ -177,7 +177,7 @@ export default function Layout({ children }) {
 
   // Toast stock bajo
   const [alertasStock, setAlertasStock]   = useState([]);
-  const [totalStockBajo, setTotalStockBajo] = useState(0); // conteo real, sin el límite de la lista
+  const [alertasTotal, setAlertasTotal]   = useState(0);
   const [toastVisible, setToastVisible]   = useState(false);
   const [toastOpaque,  setToastOpaque]    = useState(false);
   const toastTimer = useRef(null);
@@ -186,7 +186,7 @@ export default function Layout({ children }) {
     api.get('/dashboard/alertas-stock')
       .then(r => {
         setAlertasStock(r.data.alertas || []);
-        setTotalStockBajo(r.data.total ?? (r.data.alertas || []).length);
+        setAlertasTotal(r.data.total ?? (r.data.alertas || []).length);
       })
       .catch(() => {});
   }, []);
@@ -503,7 +503,7 @@ export default function Layout({ children }) {
             </div>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#111827', flex: 1 }}>Stock bajo detectado</span>
             <span style={{ background: '#FEE2E2', color: '#ef4444', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-              {totalStockBajo} {totalStockBajo === 1 ? 'producto' : 'productos'}
+              {alertasTotal} {alertasTotal === 1 ? 'producto' : 'productos'}
             </span>
             <button onClick={cerrarToast} title="Cerrar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px 2px 2px 6px', display: 'flex', alignItems: 'center', borderRadius: 4, transition: 'color .15s' }}
               onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
@@ -519,8 +519,8 @@ export default function Layout({ children }) {
                 <span style={{ fontSize: 11.5, fontWeight: 700, color: '#ef4444', background: '#FFF5F5', padding: '2px 8px', borderRadius: 20, marginLeft: 8, flexShrink: 0 }}>{p.stock} und.</span>
               </div>
             ))}
-            {totalStockBajo > 5 && (
-              <div style={{ fontSize: 11.5, color: '#9ca3af', marginTop: 6, paddingTop: 4 }}>+{totalStockBajo - 5} productos más con stock bajo</div>
+            {alertasTotal > 5 && (
+              <div style={{ fontSize: 11.5, color: '#9ca3af', marginTop: 6, paddingTop: 4 }}>+{alertasTotal - 5} productos más con stock bajo</div>
             )}
           </div>
           <div style={{ height: 3, background: '#FEE2E2' }}>
