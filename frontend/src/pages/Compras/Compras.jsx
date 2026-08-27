@@ -745,6 +745,26 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
     ejecutarGuardar([]);
   };
 
+  const [cargandoCodigoIdx, setCargandoCodigoIdx] = useState(null);
+  const asignarSiguienteCodigo = async (idx) => {
+    setCargandoCodigoIdx(idx);
+    try {
+      const { data } = await api.get('/productos/siguiente-codigo');
+      const ancho = data.codigo.length;
+      let num = parseInt(data.codigo, 10);
+      // Evitar chocar con códigos que ya se asignaron a otras filas de este mismo lote (aún no guardadas)
+      const usados = new Set(
+        productosParaInventario.map((p, i) => (i !== idx ? (p.codigo || '').trim() : null)).filter(Boolean)
+      );
+      let candidato = String(num).padStart(ancho, '0');
+      while (usados.has(candidato)) { num++; candidato = String(num).padStart(ancho, '0'); }
+      setProductosParaInventario(prev =>
+        prev.map((x, i) => i === idx ? { ...x, codigo: candidato } : x));
+    } catch {
+      alert('No se pudo calcular el siguiente código');
+    } finally { setCargandoCodigoIdx(null); }
+  };
+
   return (
     <div style={{ padding: `clamp(16px, 3vw, 28px) ${isMobile ? 16 : 32}px`, width: '100%', boxSizing: 'border-box' }}>
       {modalSRI && <ModalSRI onImportar={handleImportarSRI} onCerrar={() => setModalSRI(false)} />}
@@ -803,7 +823,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
             <div style={{ overflowX: 'auto' }}>
             <div style={{ minWidth: 520 }}>
             <div style={{ display: 'grid',
-              gridTemplateColumns: '1fr 130px 110px 110px 75px',
+              gridTemplateColumns: '1fr 168px 110px 110px 75px',
               gap: 8, padding: '8px 12px', marginBottom: 4 }}>
               {['Descripción del producto', 'Código interno', 'PVP 1 (precio)', 'PVP 2 (mayorista)', 'IVA %'].map((h, i) => (
                 <div key={i} style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af',
@@ -821,7 +841,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
                     background: sinCodigo ? '#fff7ed' : '#f9fafb',
                     border: `1px solid ${sinCodigo ? '#fed7aa' : '#e5e7eb'}`,
                     borderRadius: 10, display: 'grid',
-                    gridTemplateColumns: '1fr 130px 110px 110px 75px',
+                    gridTemplateColumns: '1fr 168px 110px 110px 75px',
                     gap: 8, alignItems: 'center', padding: '10px 12px' }}>
 
                     {/* Descripción */}
@@ -835,14 +855,26 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
                     </div>
 
                     {/* Código */}
-                    <input value={p.codigo}
-                      onChange={e => setProductosParaInventario(prev =>
-                        prev.map((x, i) => i === idx ? { ...x, codigo: e.target.value } : x))}
-                      placeholder="Ej: PROD-001"
-                      style={{ ...inp, padding: '8px 10px', fontSize: 12.5,
-                        textAlign: 'center', fontFamily: 'monospace',
-                        borderColor: sinCodigo ? '#f97316' : undefined,
-                        background: sinCodigo ? '#fff' : undefined }} />
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      <input value={p.codigo}
+                        onChange={e => setProductosParaInventario(prev =>
+                          prev.map((x, i) => i === idx ? { ...x, codigo: e.target.value } : x))}
+                        placeholder="Ej: PROD-001"
+                        style={{ ...inp, padding: '8px 10px', fontSize: 12.5,
+                          textAlign: 'center', fontFamily: 'monospace',
+                          borderColor: sinCodigo ? '#f97316' : undefined,
+                          background: sinCodigo ? '#fff' : undefined }} />
+                      <button type="button" onClick={() => asignarSiguienteCodigo(idx)}
+                        disabled={cargandoCodigoIdx === idx}
+                        title="Usar el siguiente código disponible"
+                        style={{ flexShrink: 0, width: 30, background: '#fff', border: '1px solid #e5e7eb',
+                          borderRadius: 7, color: D.teal, fontSize: 16, fontWeight: 700,
+                          cursor: cargandoCodigoIdx === idx ? 'default' : 'pointer',
+                          opacity: cargandoCodigoIdx === idx ? 0.5 : 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {cargandoCodigoIdx === idx ? '…' : '+'}
+                      </button>
+                    </div>
 
                     {/* PVP1 */}
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -1273,6 +1305,51 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
   const [resBusqXML, setResBusqXML] = useState([]);
   const [buscandoXML, setBuscandoXML] = useState(false);
   const busqTimeout = useRef(null);
+  const btnVincularRef = useRef(null);
+  const panelVincularRef = useRef(null);
+  const [panelPosXML, setPanelPosXML] = useState({ top: 0, left: 0, width: 280, openUp: false });
+
+  // Calcula posición del panel (portal a document.body) a partir del botón, con clamp a viewport
+  const abrirSugsXML = () => {
+    const rect = btnVincularRef.current?.getBoundingClientRect();
+    if (rect) {
+      const panelWidth = 280;
+      const panelHeightEstimate = 300;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUp = spaceBelow < panelHeightEstimate && rect.top > panelHeightEstimate;
+      let left = rect.right - panelWidth;
+      if (left < 8) left = 8;
+      if (left + panelWidth > window.innerWidth - 8) left = window.innerWidth - 8 - panelWidth;
+      setPanelPosXML({
+        top: openUp ? rect.top - 4 : rect.bottom + 4,
+        left,
+        width: panelWidth,
+        openUp,
+      });
+    }
+    setBusqXML('');
+    setMostrarSugsXML(true);
+  };
+
+  // Cerrar al hacer clic afuera o al hacer scroll (para no quedar con el panel desalineado)
+  useEffect(() => {
+    if (!mostrarSugsXML) return;
+    const handleClickOutside = (e) => {
+      if (btnVincularRef.current?.contains(e.target)) return;
+      if (panelVincularRef.current?.contains(e.target)) return;
+      setMostrarSugsXML(false);
+    };
+    const handleScroll = (e) => {
+      if (panelVincularRef.current?.contains(e.target)) return;
+      setMostrarSugsXML(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, { capture: true });
+    };
+  }, [mostrarSugsXML]);
 
   // Búsqueda manual con scoring bidireccional
   const buscarEnInventario = useCallback(async (texto) => {
@@ -1423,7 +1500,8 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
           ) : (
             // Sin vincular: botón que abre dropdown con búsqueda por palabras
             <div>
-              <button onClick={() => { setMostrarSugsXML(v => !v); if (!mostrarSugsXML) setBusqXML(''); }}
+              <button ref={btnVincularRef}
+                onClick={() => { if (mostrarSugsXML) { setMostrarSugsXML(false); } else { abrirSugsXML(); } }}
                 style={{ width: '100%', background: sugerenciasXML.length > 0 ? D.goldBg : '#f9fafb',
                   border: `1px solid ${sugerenciasXML.length > 0 ? D.goldBdr : '#e5e7eb'}`,
                   borderRadius: 7, padding: '5px 8px', fontSize: 11,
@@ -1444,12 +1522,15 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                 )}
               </button>
 
-              {mostrarSugsXML && (
-                <div style={{
-                  position: 'absolute', top: 'calc(100% + 3px)', right: 0, zIndex: 150,
+              {mostrarSugsXML && ReactDOM.createPortal(
+                <div ref={panelVincularRef} style={{
+                  position: 'fixed',
+                  top: panelPosXML.top, left: panelPosXML.left, width: panelPosXML.width,
+                  transform: panelPosXML.openUp ? 'translateY(-100%)' : undefined,
+                  zIndex: 99999,
                   background: '#ffffff', border: '1px solid #e5e7eb',
-                  borderRadius: 10, width: 280,
-                  boxShadow: '0 8px 24px rgba(0,0,0,.12)',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,.16)',
                 }}>
                   {/* Buscador manual */}
                   <div style={{ padding: '8px 10px', borderBottom: '1px solid #e5e7eb' }}>
@@ -1471,7 +1552,7 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                   </div>
 
                   {/* Lista de resultados */}
-                  <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                  <div style={{ maxHeight: 260, overflowY: 'auto' }}>
                     {/* Sugerencias automáticas (del XML) si no hay búsqueda manual */}
                     {!busqXML && sugerenciasXML.length > 0 && (
                       <>
@@ -1549,7 +1630,8 @@ function ItemRow({ fila, idx, onCambioCodigo, onCambioDesc, actualizarFila,
                       Cancelar
                     </button>
                   </div>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           )}

@@ -72,6 +72,30 @@ const obtener = async (req, res) => {
   }
 };
 
+// Calcula el siguiente código secuencial disponible, basado en el TOTAL de productos
+// registrados (activos), no en el código numérico más alto — así evita dispararse por
+// códigos tipo código de barras que también son numéricos pero mucho más largos.
+const siguienteCodigo = async (req, res) => {
+  try {
+    const { rows } = await pool.query(`SELECT COUNT(*) FROM productos WHERE activo = TRUE`);
+    let siguiente = parseInt(rows[0].count, 10) + 1;
+    let candidato = String(siguiente).padStart(6, '0');
+
+    // Por si ese código ya existe (ej. productos inactivos o import previo), se sigue sumando
+    let libre = false;
+    while (!libre) {
+      const { rows: existe } = await pool.query('SELECT 1 FROM productos WHERE codigo = $1', [candidato]);
+      if (existe.length === 0) { libre = true; }
+      else { siguiente++; candidato = String(siguiente).padStart(6, '0'); }
+    }
+
+    res.json({ codigo: candidato });
+  } catch (err) {
+    console.error('[productos] siguienteCodigo:', err.message);
+    res.status(500).json({ error: 'Error al calcular el siguiente código' });
+  }
+};
+
 const crear = async (req, res) => {
   const { codigo, descripcion, inventariable = true, stock = 0, stock_minimo = 0, iva = 0, pvp1 = 0, pvp2 = 0 } = req.body;
 
@@ -442,4 +466,4 @@ const guardarBatchInventario = async (req, res) => {
   }
 };
 
-module.exports = { listar, obtener, crear, actualizar, eliminar, ajusteStock, importarExcel, exportarExcel, fixInventariable, buscarProductos, guardarBatchInventario };
+module.exports = { listar, obtener, siguienteCodigo, crear, actualizar, eliminar, ajusteStock, importarExcel, exportarExcel, fixInventariable, buscarProductos, guardarBatchInventario };

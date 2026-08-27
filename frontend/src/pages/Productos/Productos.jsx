@@ -37,6 +37,7 @@ export default function Productos() {
   const [form, setForm]                 = useState(VACIO);
   const [guardando, setGuardando]       = useState(false);
   const [error, setError]               = useState('');
+  const [cargandoCodigo, setCargandoCodigo] = useState(false);
   const [importando, setImportando]     = useState(false);
   const [modalStock, setModalStock]         = useState(false);
   const [productoStock, setProductoStock]   = useState(null);
@@ -60,6 +61,19 @@ export default function Productos() {
   useEffect(() => { setPage(1); }, [buscar]);
 
   const abrirNuevo = () => { setEditando(null); setForm(VACIO); setError(''); setModalAbierto(true); };
+
+  const autocompletarCodigo = async () => {
+    setCargandoCodigo(true);
+    try {
+      const { data } = await api.get('/productos/siguiente-codigo');
+      setForm(f => ({ ...f, codigo: data.codigo }));
+    } catch {
+      setError('No se pudo calcular el siguiente código');
+    } finally {
+      setCargandoCodigo(false);
+    }
+  };
+
   const abrirEditar = (p) => {
     setEditando(p.id);
     setForm({ codigo: p.codigo, descripcion: p.descripcion, inventariable: p.inventariable,
@@ -267,7 +281,21 @@ export default function Productos() {
         <Modal titulo={editando ? 'Editar producto' : 'Nuevo producto'} onClose={() => setModalAbierto(false)}>
           {error && <ErrorBox msg={error} />}
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
-            <Campo label="Código" span={1}><Input value={form.codigo} onChange={v => setForm({ ...form, codigo: v })} placeholder="Ej: P001" /></Campo>
+            <Campo label="Código" span={1}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Input value={form.codigo} onChange={v => setForm({ ...form, codigo: v })} placeholder="Ej: P001" />
+                {!editando && (
+                  <button type="button" onClick={autocompletarCodigo} disabled={cargandoCodigo}
+                    title="Usar el siguiente código disponible"
+                    style={{ flexShrink: 0, width: 38, background: '#fff', border: '1px solid #e5e7eb',
+                      borderRadius: 8, color: C.azul, fontSize: 18, fontWeight: 700,
+                      cursor: cargandoCodigo ? 'default' : 'pointer', opacity: cargandoCodigo ? 0.5 : 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {cargandoCodigo ? '…' : '+'}
+                  </button>
+                )}
+              </div>
+            </Campo>
             <Campo label="Inventariable" span={1}>
               <select value={form.inventariable ? 'true' : 'false'}
                 onChange={e => setForm({ ...form, inventariable: e.target.value === 'true' })}
