@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import api from '../../api/config';
 import { useAuth } from '../../context/AuthContext';
 import { useBreakpoint } from '../../hooks/useIsMobile';
+import { fechaLocalEcuador } from '../../utils/fecha';
 import { validarFilasDetalle, validarRuc, esNumeroValido } from '../../utils/validaciones';
 
 // ── Paleta dark premium ────────────────────────────────────
@@ -401,7 +402,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
   const { isMobile } = useBreakpoint();
   const [proveedor, setProveedor]   = useState('');
   const [ruc, setRuc]               = useState('');
-  const [fecha, setFecha]           = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha]           = useState(fechaLocalEcuador());
   const [facturaRef, setFacturaRef] = useState('');
   const [notas, setNotas]           = useState('');
   const [filas, setFilas]           = useState([filaVacia()]);
@@ -431,7 +432,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
     setEditandoNumero(datosEdicion.numero || '');
     setProveedor(datosEdicion.proveedor_nombre || '');
     setRuc(datosEdicion.ruc_proveedor || '');
-    setFecha(datosEdicion.fecha?.slice(0, 10) || new Date().toISOString().split('T')[0]);
+    setFecha(datosEdicion.fecha?.slice(0, 10) || fechaLocalEcuador());
     setFacturaRef(datosEdicion.factura_ref || '');
     setNotas(datosEdicion.notas || '');
     if (datosEdicion.detalle?.length > 0) {
@@ -639,7 +640,7 @@ function NuevaCompra({ onGuardado, datosEdicion, onDatosUsados }) {
 
   const limpiar = () => {
     setFilas([filaVacia()]);
-    setProveedor(''); setRuc(''); setFecha(new Date().toISOString().split('T')[0]);
+    setProveedor(''); setRuc(''); setFecha(fechaLocalEcuador());
     setFacturaRef(''); setNotas(''); setImportadoSRI(false);
     setEditandoId(null); setEditandoNumero('');
     setSugerenciasXML({}); setVinculacionXML({});

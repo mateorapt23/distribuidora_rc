@@ -3,6 +3,7 @@ import api from '../../api/config';
 import { generarHTML } from './Guardados';
 import { useBreakpoint } from '../../hooks/useIsMobile';
 import { validarFilasDetalle } from '../../utils/validaciones';
+import { fechaLocalEcuador } from '../../utils/fecha';
 
 const C = {
   textPrimary: '#111827', textSec: '#374151', textDim: '#9ca3af',
@@ -61,7 +62,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const [clienteActivo, setClienteActivo]           = useState(false);
   const clienteRef                                  = useRef(null);
   const clienteTimeout                              = useRef(null);
-  const [fecha, setFecha]               = useState(new Date().toISOString().split('T')[0]);
+  const [fecha, setFecha]               = useState(fechaLocalEcuador());
   const [notes, setNotas]               = useState('');
   const [filas, setFilas]               = useState([filaVacia()]);
   const [guardando, setGuardando]       = useState(false);
@@ -167,7 +168,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   useEffect(() => {
     if (!datosEdicion) return;
     setCliente(datosEdicion.cliente || '');
-    setFecha(datosEdicion.fecha || new Date().toISOString().split('T')[0]);
+    setFecha(datosEdicion.fecha || fechaLocalEcuador());
     setNotas(datosEdicion.notas || '');
     setFilas((datosEdicion.filas || []).map(f => ({
       ...f,
@@ -277,7 +278,7 @@ export default function Tabla({ onGuardado, datosEdicion, onDatosUsados }) {
   const eliminarFila = (id) => { if (filas.length > 1) setFilas(prev => prev.filter(f => f._id !== id)); };
   const limpiarTodo  = () => {
     setFilas([filaVacia()]); setCliente(''); setNotas('');
-    setFecha(new Date().toISOString().split('T')[0]);
+    setFecha(fechaLocalEcuador());
     setIdEdicion(null); setTipoEdicion(null); setTipoNuevo('recibo'); setNumeroEdicion('');
   };
 

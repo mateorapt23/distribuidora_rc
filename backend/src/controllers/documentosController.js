@@ -2,6 +2,15 @@ const pool = require('../config/db');
 const { registrarLog } = require('./logHelper');
 const { validarFilasDetalle } = require('../utils/validaciones');
 
+// Fecha de HOY en zona horaria de Ecuador, como respaldo si el body no trae 'fecha'.
+// No usar new Date().toISOString() aquí: eso da la fecha en UTC y cerca de la
+// noche (hora Ecuador) ya cae en el día siguiente.
+const fechaLocalEcuador = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Guayaquil',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date());
+
 const generarNumero = async (client, tipo) => {
   const seq = tipo === 'proforma' ? 'seq_proforma' : 'seq_recibo';
   const prefix = tipo === 'proforma' ? 'P' : 'R';
@@ -72,7 +81,7 @@ const crear = async (req, res) => {
   }
   const errorDetalle = validarFilasDetalle(detalle, 'precio');
   if (errorDetalle) return res.status(400).json({ error: errorDetalle });
-  if (!fecha) req.body.fecha = new Date().toISOString().split('T')[0]; // ya tiene fallback más abajo, esta línea es opcional
+  if (!fecha) req.body.fecha = fechaLocalEcuador(); // ya tiene fallback más abajo, esta línea es opcional
 
   const client = await pool.connect();
   try {
@@ -91,7 +100,7 @@ const crear = async (req, res) => {
     const { rows: docRows } = await client.query(
       `INSERT INTO documentos (numero, tipo, cliente, fecha, subtotal, total_iva, total, notas, usuario_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [numero, tipo, cliente, fecha || new Date().toISOString().split('T')[0], subtotal, total_iva, total, notas, req.usuario.id]
+      [numero, tipo, cliente, fecha || fechaLocalEcuador(), subtotal, total_iva, total, notas, req.usuario.id]
     );
     const doc = docRows[0];
 
